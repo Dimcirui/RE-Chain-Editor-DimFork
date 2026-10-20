@@ -582,6 +582,83 @@ def getChainLinkGeoNodeTree():
 	return node_group
 
 def getLinkColGeoNodeTree():
+	"""MH Wilds' link collision: a sphere midway between the pair's nodes, of the link node's radius (times the
+	chain's scale; read by Physics_Sim, FUN_14a5e2b40), and a thin line between the nodes."""
+	TREENAME = "ChainLinkColGeoNodeTreeV4"
+	if TREENAME not in bpy.data.node_groups:
+		node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
+		nodes = node_group.nodes
+		links = node_group.links
+		if bpy.app.version < (4,0,0):
+			node_group.inputs.new("NodeSocketObject","Start Object")
+			node_group.inputs.new("NodeSocketObject","End Object")
+			node_group.inputs.new("NodeSocketFloat","Radius")
+		else:
+			node_group.interface.new_socket(name="Start Object",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketObject")
+			node_group.interface.new_socket(name="End Object",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketObject")
+			node_group.interface.new_socket(name="Radius",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketFloat")
+		mat = getChainLinkColMat()
+		inNode = nodes.new('NodeGroupInput')
+		inNode.location = (0,0)
+		startObjInfoNode = nodes.new('GeometryNodeObjectInfo')
+		startObjInfoNode.location = (300,0)
+		links.new(inNode.outputs["Start Object"],startObjInfoNode.inputs["Object"])
+		endObjInfoNode = nodes.new('GeometryNodeObjectInfo')
+		endObjInfoNode.location = (300,-300)
+		links.new(inNode.outputs["End Object"],endObjInfoNode.inputs["Object"])
+		addNode = nodes.new('ShaderNodeVectorMath')
+		addNode.location = (600,0)
+		addNode.operation = "ADD"
+		links.new(startObjInfoNode.outputs["Location"],addNode.inputs[0])
+		links.new(endObjInfoNode.outputs["Location"],addNode.inputs[1])
+		midNode = nodes.new('ShaderNodeVectorMath')
+		midNode.location = (800,0)
+		midNode.operation = "SCALE"
+		links.new(addNode.outputs["Vector"],midNode.inputs[0])
+		midNode.inputs["Scale"].default_value = 0.5
+		uvSphereNode = nodes.new('GeometryNodeMeshUVSphere')
+		uvSphereNode.location = (800,-200)
+		links.new(inNode.outputs["Radius"],uvSphereNode.inputs["Radius"])
+		transformNode = nodes.new('GeometryNodeTransform')
+		transformNode.location = (1000,0)
+		links.new(uvSphereNode.outputs["Mesh"],transformNode.inputs["Geometry"])
+		links.new(midNode.outputs["Vector"],transformNode.inputs["Translation"])
+		curveLineNode = nodes.new('GeometryNodeCurvePrimitiveLine')
+		curveLineNode.location = (600,-300)
+		links.new(startObjInfoNode.outputs["Location"],curveLineNode.inputs["Start"])
+		links.new(endObjInfoNode.outputs["Location"],curveLineNode.inputs["End"])
+		curveCircleNode = nodes.new('GeometryNodeCurvePrimitiveCircle')
+		curveCircleNode.location = (600,-500)
+		curveCircleNode.inputs["Radius"].default_value = 0.0005#the pair line: display only, the game has no line
+		curveToMeshNode = nodes.new('GeometryNodeCurveToMesh')
+		curveToMeshNode.location = (1000,-300)
+		links.new(curveLineNode.outputs["Curve"],curveToMeshNode.inputs["Curve"])
+		links.new(curveCircleNode.outputs["Curve"],curveToMeshNode.inputs["Profile Curve"])
+		joinGeometryNode = nodes.new('GeometryNodeJoinGeometry')
+		joinGeometryNode.location = (1200,0)
+		links.new(transformNode.outputs["Geometry"],joinGeometryNode.inputs["Geometry"])
+		links.new(curveToMeshNode.outputs["Mesh"],joinGeometryNode.inputs["Geometry"])
+		setMaterialNode = nodes.new('GeometryNodeSetMaterial')
+		setMaterialNode.location = (1400,0)
+		setMaterialNode.inputs["Material"].default_value = mat
+		links.new(joinGeometryNode.outputs["Geometry"],setMaterialNode.inputs["Geometry"])
+		setSmoothShadeNode = nodes.new('GeometryNodeSetShadeSmooth')
+		setSmoothShadeNode.location = (1600,0)
+		links.new(setMaterialNode.outputs["Geometry"],setSmoothShadeNode.inputs["Geometry"])
+		outNode = nodes.new('NodeGroupOutput')
+		outNode.location = (1800,0)
+		if bpy.app.version < (3,4,0):
+			outNode.inputs.new('NodeSocketGeometry', 'Geometry')
+		elif bpy.app.version < (4,0,0):
+			node_group.outputs.new('NodeSocketGeometry', 'Geometry')
+		else:
+			node_group.interface.new_socket(name="Geometry",description="",in_out ="OUTPUT", socket_type="NodeSocketGeometry")
+		links.new(setSmoothShadeNode.outputs["Geometry"],outNode.inputs["Geometry"])
+		return node_group
+	return bpy.data.node_groups[TREENAME]
+
+def getLinkColGeoNodeTreeV2():
+	"""The drawing before Physics_Sim's review (a tube 3.5 times the radius along the pair): kept for old files."""
 	TREENAME = "ChainLinkColGeoNodeTreeV2"
 	
 	if TREENAME not in bpy.data.node_groups:

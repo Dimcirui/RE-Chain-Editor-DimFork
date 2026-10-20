@@ -697,6 +697,28 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		if bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2":
 			col2.prop(re_chain_chainlink, "clspFlags0")
 			col2.prop(re_chain_chainlink, "clspFlags1")
+		from .re_chain_propertyGroups import linkCollisionNodePairs,linkCollisionObjects,linkCollisionSetting,LINK_COLLISION_FLAGS
+		box = layout.box()
+		box.label(text="As MH Wilds builds this link (read by Physics_Sim):")
+		pairs = linkCollisionNodePairs(object)
+		colCount = len(linkCollisionObjects(object))
+		if re_chain_chainlink.linkMode not in ("0","1"):
+			box.label(text="Link Mode 2 and up: the game builds no link", icon="ERROR")
+		else:
+			used = min(len(pairs),colCount) if colCount else len(pairs)
+			box.label(text=f"{len(pairs)} straight pairs; {colCount} link collisions (exported as Node Count, caps the pairs: {used} used)")
+		if not int(re_chain_chainlink.connectFlags) & 1:
+			box.label(text="No straight pairs (Connection Flags bit 1): the link collisions do nothing", icon="ERROR")
+		if bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2":
+			header, setting = linkCollisionSetting(object)
+			if setting == None:
+				box.label(text="No chain setting at the header's Default Setting Index", icon="ERROR")
+			else:
+				attr = setting.re_chain_chainsettings.groupDefaultAttr
+				box.label(text=f"Link collision switched by {setting.name} (Default Setting Index {header.re_chain_header.defaultSettingIdx}), Group Default Attribute {attr}:")
+				for bit,label in LINK_COLLISION_FLAGS:
+					box.label(text=f"{'on ' if attr & bit else 'off'}  {hex(bit)}: against {label}", icon="CHECKBOX_HLT" if attr & bit else "CHECKBOX_DEHLT")
+		box.operator("re_chain.refresh_link_collisions")
 
 class OBJECT_PT_ChainLinkCollisionPanel(Panel):
 	bl_label = "RE Chain Link Collision Settings"

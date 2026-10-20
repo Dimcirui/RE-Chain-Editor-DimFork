@@ -1021,20 +1021,17 @@ def importChainFile(filepath,options,isChain2 = False):
 							currentNodeHasChildNode = True
 					if not currentNodeHasChildNode:
 						hasChildNode = False
+			from .re_chain_propertyGroups import linkCollisionNodePairs
+			pairs = linkCollisionNodePairs(chainLinkObj)#the pairs MH Wilds builds (Link Mode, skips), not node j of each group
 			for index,linkCollision in enumerate(chainLink.nodeColLinkList):
-				
+				objA, objB = pairs[index] if index < len(pairs) else (None,None)
 				try:
-					objA = chainLinkANodeObjList[index]
 					nameA = objA.constraints["BoneName"].subtarget
 				except:
-					objA = None
 					nameA = "INVALID"
-					
 				try:
-					objB = chainLinkBNodeObjList[index]
 					nameB = objB.constraints["BoneName"].subtarget
 				except:
-					objB = None
 					nameB = "INVALID"
 				linkCollisionObj = createCurveEmpty(f"{name}_COL_{str(index).zfill(2)} - {nameA} > {nameB}", [("TYPE","RE_CHAIN_LINK_COLLISION")],chainLinkObj,linkCollection)
 				lockObjTransforms(linkCollisionObj)

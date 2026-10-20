@@ -318,6 +318,87 @@ def update_ChainGroupB(self, context):
 				
 			obj.name = f"LINK_{str(linkIndex).zfill(2)} - {shortNameA} > {shortNameB}"
 			
+#MH Wilds link facts below are read from MonsterHunterWilds.exe by Physics_Sim (physsim/setup/build.py link_pairs /
+#build_links, physsim/solver/links.py, re/notes/chain2_runtime.md)
+LINK_COLLISION_FLAGS = ((0x10000, "scene colliders (CLSP)"), (0x20, "the chain's own collisions"), (0x80, "the physics world"))
+
+def chainGroupNodeList(groupObj):
+	"""A chain group's node objects from the root, as the link code walks them."""
+	nodeList = []
+	if groupObj != None and groupObj.get("TYPE") == "RE_CHAIN_CHAINGROUP" and len(groupObj.children) > 0:
+		currentNode = groupObj.children[0]
+		nodeList = [currentNode]
+		hasChildNode = True
+		while hasChildNode:
+			hasChildNode = False
+			for child in currentNode.children:
+				if child.get("TYPE",None) == "RE_CHAIN_NODE":
+					nodeList.append(child)
+					currentNode = child
+					hasChildNode = True
+					break
+	return nodeList
+
+def linkCollisionNodePairs(chainLinkObj):
+	"""(node A, node B) of each straight pair, in the order MH Wilds builds them: counted from the root after
+	Skip Group A / B (Link Mode 0) or from the tip (Link Mode 1, the skips taken off the tip); no link at all for
+	Link Mode 2 and up. As many pairs as the shorter group has after its skip; the exported Node Count (the
+	number of link collisions) caps them further."""
+	link = chainLinkObj.re_chain_chainlink
+	nodesA = chainGroupNodeList(bpy.data.objects.get(link.chainGroupAObject))
+	nodesB = chainGroupNodeList(bpy.data.objects.get(link.chainGroupBObject))
+	if link.linkMode not in ("0","1"):
+		return []
+	na, nb = len(nodesA) - link.skipGroupA, len(nodesB) - link.skipGroupB
+	pairs = []
+	for j in range(max(0,min(na,nb))):
+		if link.linkMode == "1":
+			ia, ib = na - 1 - j, nb - 1 - j
+		else:
+			ia, ib = link.skipGroupA + j, link.skipGroupB + j
+		if 0 <= ia < len(nodesA) and 0 <= ib < len(nodesB):
+			pairs.append((nodesA[ia],nodesB[ib]))
+	return pairs
+
+def linkCollisionObjects(chainLinkObj):
+	return sorted([child for child in chainLinkObj.children if child.get("TYPE") == "RE_CHAIN_LINK_COLLISION"],key = lambda item: item.name)
+
+def retargetLinkCollisions(chainLinkObj,context = None):
+	"""Point each link collision at its pair's two nodes (it is drawn as a sphere at their midpoint) and give it
+	the current drawing."""
+	from .re_chain_geoNodes import getLinkColGeoNodeTree
+	pairs = linkCollisionNodePairs(chainLinkObj)
+	nodeGroup = getLinkColGeoNodeTree()
+	keys = ("Input_0","Input_1","Input_2") if bpy.app.version < (4,0,0) else ("Socket_0","Socket_1","Socket_2")
+	for index,colObj in enumerate(linkCollisionObjects(chainLinkObj)):
+		modifier = colObj.modifiers.get("REChainGeometryNodes")
+		if modifier == None:
+			continue
+		if modifier.node_group != nodeGroup:
+			modifier.node_group = nodeGroup
+		objA, objB = pairs[index] if index < len(pairs) else (None,None)
+		modifier[keys[0]] = objA
+		modifier[keys[1]] = objB
+		modifier[keys[2]] = colObj.re_chain_chainlink_collision.collisionRadius
+	nodeGroup.interface_update(context or bpy.context)
+
+def linkCollisionSetting(chainLinkObj):
+	"""The chain setting whose Group Default Attribute switches link collision on: MH Wilds takes the setting the
+	header's Default Setting Index picks, in export order (by name)."""
+	for collection in bpy.data.collections:
+		if chainLinkObj.name in collection.all_objects:
+			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
+			if headers:
+				settings = sorted([obj for obj in collection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"],key = lambda item: item.name)
+				index = headers[0].re_chain_header.defaultSettingIdx
+				return headers[0], settings[index] if 0 <= index < len(settings) else None
+	return None, None
+
+def update_LinkCollisionTargets(self, context):
+	obj = self.id_data
+	if type(obj).__name__ == "Object" and obj.get("TYPE",None) == "RE_CHAIN_LINK":#Not the clipboard
+		retargetLinkCollisions(obj,context)
+
 def update_ChainLinkCollisionRadius(self, context):
 	obj = self.id_data
 	if type(obj).__name__ == "Object":#Check if it's an object to prevent issues with clipboard 
@@ -2403,57 +2484,65 @@ class chainLinkPropertyGroup(bpy.types.PropertyGroup):
 	
 	distanceShrinkLimitCoef: FloatProperty(
 		name = "Distance Shrink Limit Coefficient",
-		description = "Distance Shrink Limit Coefficient",#TODO Add description
+		description = "With Stretch range: a straight pair may close down to this times its bind distance. Unused with Fixed length",
 		default = 0.5,
 		)
 	distanceExpandLimitCoef: FloatProperty(
 		name = "Distance Expand Limit Coefficient",
-		description = "Distance Expand Limit Coefficient",#TODO Add description
+		description = "With Stretch range: a straight pair may open up to this times its bind distance. Unused with Fixed length",
 		default = 1.00,
 		)
 	linkMode: EnumProperty(
 		name="Link Mode",
-		description="Apply Data to attribute.",
-		items=[ ("0", "LinkMode_TopToBottom", ""),
-				("1", "LinkMode_BottomToTop", ""),
-				("2", "LinkMode_Manual", ""),
-			   ]
+		description="Which end the pairs are counted from",
+		items=[ ("0", "Root to tip (TopToBottom)", "Node j of each group counted from the root, after Skip Group A / B"),
+				("1", "Tip to root (BottomToTop)", "Node j of each group counted from the tip (the skips come off the tip)"),
+				("2", "Off (Manual)", "MH Wilds builds no link for mode 2 and up"),
+			   ],
+		update = update_LinkCollisionTargets
 		)
 	connectFlags: EnumProperty(
 		name="Connection Flags",
-		description="Apply Data to attribute.",
-		items=[ ("1", "ConnectionFlags_Neighbour", ""),
-				("2", "ConnectionFlags_Upper", ""),
-				("4", "ConnectionFlags_Bottom", ""),
-				("7", "ConnectionFlags_UNKNOWNFLAG_7", ""),
+		description="Which node pairs are linked (bit 1 straight A[j]-B[j], bit 2 A[j]-B[j+1], bit 4 A[j+1]-B[j]). Diagonal pairs only pull (no push) and have no collision sphere; the link collisions belong to the straight pairs",
+		items=[ ("1", "Straight (Neighbour)", "A[j] - B[j]"),
+				("2", "Diagonal A[j] - B[j+1] (Upper)", "Pulls only, no collision"),
+				("4", "Diagonal A[j+1] - B[j] (Bottom)", "Pulls only, no collision"),
+				("7", "Straight + both diagonals", "Bits 1 | 2 | 4"),
+				("3", "Straight + diagonal A[j] - B[j+1]", "Bits 1 | 2"),
+				("5", "Straight + diagonal A[j+1] - B[j]", "Bits 1 | 4"),
+				("6", "Both diagonals", "Bits 2 | 4: no straight pairs, so no link collision"),
 			   ]
 		)
 	linkAttrFlags: EnumProperty(
 		name="Link Attribute Flags",
-		description="Apply Data to attribute.",
-		items=[ ("0", "AttrFlags_Null", ""),
-				("1", "AttrFlags_EnableStretch", ""),
+		description="How long a straight pair may be",
+		items=[ ("0", "Fixed length (Null)", "Every pair keeps its bind distance; the shrink / expand coefficients are unused"),
+				("1", "Stretch range (EnableStretch)", "A straight pair may move between Shrink and Expand times its bind distance"),
 			   ]
 		)
 	skipGroupA: IntProperty(
 		name = "Skip Group A",
-		description = "Skip Group A",#TODO Add description
+		description = "Nodes of group A left out before pairing (off the root, or off the tip in Tip to root mode)",
 		default = 0,
+		min = 0,
+		update = update_LinkCollisionTargets
 		)
 	skipGroupB: IntProperty(
 		name = "Skip Group B",
-		description = "Skip Group B",#TODO Add description
+		description = "Nodes of group B left out before pairing (off the root, or off the tip in Tip to root mode)",
 		default = 0,
+		min = 0,
+		update = update_LinkCollisionTargets
 		)
 	linkOrder: EnumProperty(
-		name="Link Rotation Order",
-		description="Apply Data to attribute.",
-		items=[ ("0", "RotationOrder_XYZ", ""),
-				("1", "RotationOrder_YZX", ""),
-				("2", "RotationOrder_ZXY", ""),
-				("3", "RotationOrder_ZYX", ""),
-				("4", "RotationOrder_YXZ", ""),
-				("5", "RotationOrder_XZY", ""),
+		name="Link Pass",
+		description="The chain step pass this link runs in (MH Wilds reads this byte as a pass index, not a rotation order)",
+		items=[ ("0", "Pass 0", "Shown as RotationOrder_XYZ before"),
+				("1", "Pass 1", "Shown as RotationOrder_YZX before"),
+				("2", "Pass 2", "Shown as RotationOrder_ZXY before"),
+				("3", "Pass 3", "Shown as RotationOrder_ZYX before"),
+				("4", "Pass 4", "Shown as RotationOrder_YXZ before"),
+				("5", "Pass 5", "Shown as RotationOrder_XZY before"),
 			   ]
 		)
 	#Chain2 (MH Wilds and newer)

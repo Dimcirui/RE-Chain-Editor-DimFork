@@ -646,10 +646,28 @@ class WM_OT_NewChainLink(Operator):
 	def poll(self,context):
 		return context.active_object != None and len(context.selected_objects) == 2 and (context.selected_objects[0].get("TYPE") == "RE_CHAIN_CHAINGROUP" and context.selected_objects[1].get("TYPE") == "RE_CHAIN_CHAINGROUP")
 
+class WM_OT_RefreshLinkCollisions(Operator):
+	bl_label = "Refresh Link Collisions"
+	bl_idname = "re_chain.refresh_link_collisions"
+	bl_description = "Point the selected links' collisions at the node pairs MH Wilds builds (Link Mode, Skip Group A / B) and redraw them as the game's midpoint spheres"
+	bl_options = {'UNDO'}
+	def execute(self, context):
+		from .re_chain_propertyGroups import retargetLinkCollisions
+		count = 0
+		for obj in context.selected_objects:
+			if obj.get("TYPE") == "RE_CHAIN_LINK":
+				retargetLinkCollisions(obj,context)
+				count += 1
+		self.report({"INFO"},f"Refreshed the collisions of {count} chain link(s).")
+		return {'FINISHED'}
+	@classmethod
+	def poll(self,context):
+		return any(obj.get("TYPE") == "RE_CHAIN_LINK" for obj in context.selected_objects)
+
 class WM_OT_CreateChainLinkCollision(Operator):
 	bl_label = "Create Chain Link Collision"
 	bl_idname = "re_chain.create_chain_link_collision"
-	bl_description = "Adds collision to the selected chain link(s).\nBoth chain groups must have the same amount of bones and cannot contain branching bones"
+	bl_description = "Adds collision to the selected chain link(s): one per straight node pair MH Wilds builds (Link Mode, Skip Group A / B; as many as the shorter group has).\nThe chain groups cannot contain branching bones"
 	bl_options = {'UNDO'}
 	def execute(self, context):
 		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
@@ -703,20 +721,17 @@ class WM_OT_CreateChainLinkCollision(Operator):
 								currentNodeHasChildNode = True
 						if not currentNodeHasChildNode:
 							hasChildNode = False
-				if chainLinkANodeObjList != [] and len(chainLinkANodeObjList) == len(chainLinkBNodeObjList):
-					for index in range(len(chainLinkANodeObjList)):
+				from .re_chain_propertyGroups import linkCollisionNodePairs
+				pairs = linkCollisionNodePairs(chainLinkObj)#the straight pairs MH Wilds builds (Link Mode, skips)
+				if pairs != []:
+					for index,(objA,objB) in enumerate(pairs):
 						try:
-							objA = chainLinkANodeObjList[index]
 							nameA = objA.constraints["BoneName"].subtarget
 						except:
-							objA = None
 							nameA = "INVALID"
-							
 						try:
-							objB = chainLinkBNodeObjList[index]
 							nameB = objB.constraints["BoneName"].subtarget
 						except:
-							objB = None
 							nameB = "INVALID"
 							
 						if "LINK_" in chainLinkObj.name:
@@ -754,7 +769,7 @@ class WM_OT_CreateChainLinkCollision(Operator):
 						linkCollisionObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawLinkCollisionsThroughObjects
 					self.report({"INFO"},"Created chain link collision.")
 				else:
-					self.report({"ERROR"},"The chain groups do not have the same amount of bones or are not set in the chain link.")
+					self.report({"ERROR"},"The link builds no node pairs: set both chain groups, Link Mode 0 or 1, and skips the groups allow.")
 			
 			self.report({"INFO"},"Created chain link collision.")
 		else:
