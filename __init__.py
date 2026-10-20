@@ -1,13 +1,13 @@
 bl_info = {
-	"name": "RE Chain Editor",
-	"author": "NSA Cloud, alphaZomega",
-	"version": (14, 0),
+	"name": "RE-Chain-Editor-DimFork",
+	"author": "NSA Cloud, alphaZomega, Forked by Dimcirui",
+	"version": (0, 15, 1),
 	"blender": (3, 1, 2),
 	"location": "File > Import-Export",
 	"description": "Import and export RE Engine chain files.",
 	"warning": "",
-	"wiki_url": "https://github.com/NSACloud/RE-Chain-Editor",
-	"tracker_url": "https://github.com/NSACloud/RE-Chain-Editor/issues",
+	"wiki_url": "https://github.com/Dimcirui/RE-Chain-Editor-DimFork",
+	"tracker_url": "https://github.com/Dimcirui/RE-Chain-Editor-DimFork/issues",
 	"category": "Import-Export"}
 
 #Modified by alphaZomega to support RE2R, RE3R, RE8, RE2-3-7 RT, DMC5 and SF6 
@@ -85,7 +85,8 @@ class REChainPreferences(AddonPreferences):
         icon='FUND'
         )
 		op.url = 'https://ko-fi.com/nsacloud'
-		addon_updater_ops.update_settings_ui(self,context)
+		#Updater off until the DimFork repository has releases (it pointed at the upstream repository)
+		#addon_updater_ops.update_settings_ui(self,context)
 
 class ImportREChain(bpy.types.Operator, ImportHelper):
 	'''Import RE Engine Chain File'''
@@ -142,8 +143,8 @@ class ImportREChain(bpy.types.Operator, ImportHelper):
 		#layout.prop(self, "importUnknowns")#TODO
 	def execute(self, context):
 		options = {"targetArmature":self.targetArmature,"mergeChain":self.mergeChain,"importUnknowns":self.importUnknowns}
-		editorVersion = str(bl_info["version"][0])+"."+str(bl_info["version"][1])
-		print(f"\n{textColors.BOLD}RE Chain Editor V{editorVersion}{textColors.ENDC}")
+		editorVersion = ".".join(str(v) for v in bl_info["version"])
+		print(f"\n{textColors.BOLD}RE-Chain-Editor-DimFork V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = importChainFile(self.filepath,options,isChain2=False)
@@ -245,8 +246,8 @@ class ExportREChain(bpy.types.Operator, ExportHelper):
 		except:
 			self.report({"INFO"},"Chain file path is missing number extension. Cannot export.")
 			return{"CANCELLED"}
-		editorVersion = str(bl_info["version"][0])+"."+str(bl_info["version"][1])
-		print(f"\n{textColors.BOLD}RE Chain Editor V{editorVersion}{textColors.ENDC}")
+		editorVersion = ".".join(str(v) for v in bl_info["version"])
+		print(f"\n{textColors.BOLD}RE-Chain-Editor-DimFork V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportChainFile(self.filepath,options, chainVersion)
@@ -302,8 +303,8 @@ class ImportRECLSP(bpy.types.Operator, ImportHelper):
 		layout.prop_search(self, "targetArmature",bpy.data,"armatures")
 	def execute(self, context):
 		options = {"targetArmature":self.targetArmature}
-		editorVersion = str(bl_info["version"][0])+"."+str(bl_info["version"][1])
-		print(f"\n{textColors.BOLD}RE Chain Editor V{editorVersion}{textColors.ENDC}")
+		editorVersion = ".".join(str(v) for v in bl_info["version"])
+		print(f"\n{textColors.BOLD}RE-Chain-Editor-DimFork V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = importCLSPFile(self.filepath,options)
@@ -374,8 +375,8 @@ class ExportRECLSP(bpy.types.Operator, ExportHelper):
 		except:
 			self.report({"INFO"},"CLSP file path is missing number extension. Cannot export.")
 			return{"CANCELLED"}
-		editorVersion = str(bl_info["version"][0])+"."+str(bl_info["version"][1])
-		print(f"\n{textColors.BOLD}RE Chain Editor V{editorVersion}{textColors.ENDC}")
+		editorVersion = ".".join(str(v) for v in bl_info["version"])
+		print(f"\n{textColors.BOLD}RE-Chain-Editor-DimFork V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportCLSPFile(self.filepath,options, clspVersion)
@@ -441,8 +442,8 @@ class ImportREChain2(bpy.types.Operator, ImportHelper):
 		#layout.prop(self, "importUnknowns")#TODO
 	def execute(self, context):
 		options = {"targetArmature":self.targetArmature,"mergeChain":self.mergeChain,"importUnknowns":self.importUnknowns}
-		editorVersion = str(bl_info["version"][0])+"."+str(bl_info["version"][1])
-		print(f"\n{textColors.BOLD}RE Chain Editor V{editorVersion}{textColors.ENDC}")
+		editorVersion = ".".join(str(v) for v in bl_info["version"])
+		print(f"\n{textColors.BOLD}RE-Chain-Editor-DimFork V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = importChainFile(self.filepath,options,isChain2=True)
@@ -544,8 +545,8 @@ class ExportREChain2(bpy.types.Operator, ExportHelper):
 		except:
 			self.report({"INFO"},"Chain file path is missing number extension. Cannot export.")
 			return{"CANCELLED"}
-		editorVersion = str(bl_info["version"][0])+"."+str(bl_info["version"][1])
-		print(f"\n{textColors.BOLD}RE Chain Editor V{editorVersion}{textColors.ENDC}")
+		editorVersion = ".".join(str(v) for v in bl_info["version"])
+		print(f"\n{textColors.BOLD}RE-Chain-Editor-DimFork V{editorVersion}{textColors.ENDC}")
 		print(f"Blender Version {bpy.app.version[0]}.{bpy.app.version[1]}.{bpy.app.version[2]}")
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportChainFile(self.filepath,options, chainVersion,isChain2=True)
@@ -741,7 +742,7 @@ def re_chain_migrate_flags(dummy):
 	migrateFlagFields()
 
 def register():
-	addon_updater_ops.register(bl_info)
+	#addon_updater_ops.register(bl_info)
 	for classEntry in classes:
 		bpy.utils.register_class(classEntry)
 	
@@ -786,7 +787,7 @@ def register():
 def unregister():
 	if re_chain_migrate_flags in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(re_chain_migrate_flags)
-	addon_updater_ops.unregister()
+	#addon_updater_ops.unregister()
 	for classEntry in classes:
 		bpy.utils.unregister_class(classEntry)
 	
