@@ -775,6 +775,86 @@ def getLinkColGeoNodeTreeV2():
 	return node_group
 
 def getConeGeoNodeTree(isSubGroup = False):
+	"""The angle limit cone as MH Wilds clamps it (read from the exe by Physics_Sim, re/notes/angle_limits.md): the
+	input is the FULL opening angle, the swing is half of it; tip at the node, axis +X, length 10 before the helper's
+	scale. Over 90 degrees half angle the cone opens backwards. (V1 used the angle as the base radius of a depth 2
+	cone: atan(angle / 2), so 180 degrees in the file drew +-57.5 instead of +-90.)"""
+	if isSubGroup:
+		TREENAME = "ChainConeSubGroupGeoNodeTreeV2"
+		mat = getConeSubGroupMat()
+	else:
+		TREENAME = "ChainConeGeoNodeTreeV2"
+		mat = getConeMat()
+	if TREENAME not in bpy.data.node_groups:
+		node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
+		nodes = node_group.nodes
+		links = node_group.links
+		if bpy.app.version < (4,0,0):
+			node_group.inputs.new("NodeSocketFloat","AngleLimitRadius")
+		else:
+			node_group.interface.new_socket(name="AngleLimitRadius",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketFloat")
+		LENGTH = 10.0
+		inNode = nodes.new('NodeGroupInput')
+		inNode.location = (0,0)
+		def math(operation,a,b = None,location = (0,0)):
+			node = nodes.new('ShaderNodeMath')
+			node.operation = operation
+			node.location = location
+			for index,value in enumerate((a,b)):
+				if value is None:
+					continue
+				if isinstance(value,(int,float)):
+					node.inputs[index].default_value = value
+				else:
+					links.new(value,node.inputs[index])
+			return node.outputs[0]
+		half = math("MULTIPLY",inNode.outputs["AngleLimitRadius"],0.5,(200,0))
+		sine = math("SINE",half,None,(400,100))
+		cosine = math("COSINE",half,None,(400,-100))
+		radius = math("MULTIPLY",math("ABSOLUTE",sine,None,(600,100)),LENGTH,(800,100))
+		depth = math("MULTIPLY",math("ABSOLUTE",cosine,None,(600,-100)),LENGTH,(800,-100))
+		side = math("SIGN",cosine,None,(800,-300))
+		coneNode = nodes.new('GeometryNodeMeshCone')
+		coneNode.location = (1000,0)
+		coneNode.inputs["Vertices"].default_value = 24
+		coneNode.inputs["Radius Top"].default_value = 0.0
+		links.new(radius,coneNode.inputs["Radius Bottom"])
+		links.new(depth,coneNode.inputs["Depth"])
+		offset = nodes.new('ShaderNodeCombineXYZ')
+		offset.location = (1000,-250)
+		links.new(depth,offset.inputs["X"])
+		placeNode = nodes.new('GeometryNodeTransform')#the Mesh Cone stands on z = 0 with its tip at z = depth: tip to the origin, axis along +X
+		placeNode.location = (1200,0)
+		placeNode.inputs["Rotation"].default_value = (0.0,-1.570796,0.0)
+		links.new(coneNode.outputs["Mesh"],placeNode.inputs["Geometry"])
+		links.new(offset.outputs["Vector"],placeNode.inputs["Translation"])
+		flip = nodes.new('ShaderNodeCombineXYZ')
+		flip.location = (1200,-250)
+		links.new(side,flip.inputs["X"])
+		flip.inputs["Y"].default_value = 1.0
+		flip.inputs["Z"].default_value = 1.0
+		flipNode = nodes.new('GeometryNodeTransform')#a half angle over 90 degrees opens backwards
+		flipNode.location = (1400,0)
+		links.new(placeNode.outputs["Geometry"],flipNode.inputs["Geometry"])
+		links.new(flip.outputs["Vector"],flipNode.inputs["Scale"])
+		setMaterialNode = nodes.new('GeometryNodeSetMaterial')
+		setMaterialNode.location = (1600,0)
+		setMaterialNode.inputs["Material"].default_value = mat
+		links.new(flipNode.outputs["Geometry"],setMaterialNode.inputs["Geometry"])
+		outNode = nodes.new('NodeGroupOutput')
+		outNode.location = (1800,0)
+		if bpy.app.version < (3,4,0):
+			outNode.inputs.new('NodeSocketGeometry', 'Geometry')
+		elif bpy.app.version < (4,0,0):
+			node_group.outputs.new('NodeSocketGeometry', 'Geometry')
+		else:
+			node_group.interface.new_socket(name="Geometry",description="",in_out ="OUTPUT", socket_type="NodeSocketGeometry")
+		links.new(setMaterialNode.outputs["Geometry"],outNode.inputs["Geometry"])
+		return node_group
+	return bpy.data.node_groups[TREENAME]
+
+def getConeGeoNodeTreeV1(isSubGroup = False):
+	"""The drawing before Physics_Sim's review, kept for old files."""
 	if isSubGroup:
 		TREENAME = "ChainConeSubGroupGeoNodeTreeV1"
 		mat = getConeSubGroupMat()

@@ -826,6 +826,7 @@ class OBJECT_PT_AngleLimitVisPanel(Panel):
 		layout.prop(re_chain_toolpanel, "hideLastNodeAngleLimit")
 		layout.prop(re_chain_toolpanel, "angleLimitDisplaySize")
 		layout.prop(re_chain_toolpanel, "coneDisplaySize")
+		layout.operator("re_chain.fix_angle_limit_frames")
 		
 class OBJECT_PT_ColorVisPanel(Panel):
 	bl_label = "Color Settings"

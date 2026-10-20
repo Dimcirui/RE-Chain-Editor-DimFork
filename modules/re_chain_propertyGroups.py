@@ -87,24 +87,65 @@ def update_RelationLinesVis(self, context):
 	bpy.context.space_data.overlay.show_relationship_lines = self.showRelationLines
 
 
+def angleLimitConeScale(nodeObj,size):
+	"""The (x, y, z) scale of a node's angle limit cone helper, in its frame (the cone's axis is X). Each mode's
+	shape as MH Wilds clamps the swing (read from the exe by Physics_Sim, re/notes/angle_limits.md): Cone and
+	Elliptic are round (Elliptic runs the Cone code); Hinge keeps the frame's X-Y plane (Z flat); Oval squeezes Z
+	by Angle Limit Distance; Cone Box is the cone cut by the slab |z| <= distance x length (drawn squeezed to it).
+	Free, a 0 limit or one over 360 degrees clamp nothing: hidden."""
+	from math import sin,pi
+	node = nodeObj.re_chain_chainnode
+	full = node.angleLimitRad
+	if node.angleMode == "0" or full <= 0.0 or full > 2.0 * pi + 1e-6:
+		return (0.0,0.0,0.0)#nothing to draw (a helper with no children: a zero scale is safe)
+	d = node.angleLimitDistance
+	z = 1.0
+	if node.angleMode == "2":
+		z = 0.01
+	elif node.angleMode == "4":
+		z = min(max(d,0.01),1.0)
+	elif node.angleMode == "3":
+		s = abs(sin(full * 0.5))
+		z = 1.0 if s < 1e-6 else min(max(d / s,0.01),1.0)
+	return (size,size,size * z)
+
+def angleLimitFrameParentBone(nodeObj):
+	"""The bone whose rotation the node's angle limit frame is in: MH Wilds takes the PARENT bone's (node i-1's
+	for later nodes, the joint the chain hangs from for the first; "" = the armature object itself)."""
+	constraint = nodeObj.constraints.get("BoneName")
+	if constraint == None or constraint.target == None or constraint.target.type != "ARMATURE":
+		return None
+	bone = constraint.target.data.bones.get(constraint.subtarget)
+	if bone == None:
+		return None
+	return bone.parent.name if bone.parent != None else ""
+
+def fixAngleLimitFrame(nodeObj,context = None):
+	"""Put the node's frame on its parent bone (the node object copies the parent bone's rotation; the frame's
+	local rotation stays the file's angleLimitDirection) and give its cone the current drawing and shape."""
+	from .re_chain_geoNodes import getConeGeoNodeTree
+	parentBone = angleLimitFrameParentBone(nodeObj)
+	rotation = nodeObj.constraints.get("BoneRotation")
+	if parentBone != None and rotation != None:
+		rotation.subtarget = parentBone
+	nodeObj["angleLimitFrameOnParent"] = 1
+	for child in nodeObj.children:
+		if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME":
+			for frameChild in child.children:
+				if frameChild.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER" and "REChainGeometryNodes" in frameChild.modifiers:
+					modifier = frameChild.modifiers["REChainGeometryNodes"]
+					isSubGroup = modifier.node_group != None and "SubGroup" in modifier.node_group.name
+					modifier.node_group = getConeGeoNodeTree(isSubGroup = isSubGroup)
+					modifier["Input_0" if bpy.app.version < (4,0,0) else "Socket_0"] = nodeObj.re_chain_chainnode.angleLimitRad
+					modifier.node_group.interface_update(context or bpy.context)
+					frameChild.scale = angleLimitConeScale(nodeObj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
+
 def update_coneSize(self, context):
 	for obj in bpy.data.objects:
 		if obj.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER":
 			
-			xScaleModifier = 1.0
-			yScaleModifier = 1.0
-			zScaleModifier = 1.0
-			
-			#Get chain node to check settings
-			if obj.parent != None and obj.parent.parent != None and obj.parent.parent.get("TYPE") == "RE_CHAIN_NODE":
-				nodeObj = obj.parent.parent
-				if nodeObj.re_chain_chainnode.angleMode == "2":#Hinge angle mode
-					yScaleModifier = .01
-				elif nodeObj.re_chain_chainnode.angleMode == "4":#Limit oval angle mode
-					zScaleModifier = .5
-				elif nodeObj.re_chain_chainnode.angleMode == "5":#Limit elliptic angle mode
-					yScaleModifier = .5
-			obj.scale = (self.coneDisplaySize*xScaleModifier,self.coneDisplaySize*yScaleModifier,self.coneDisplaySize*zScaleModifier)
+			nodeObj = obj.parent.parent if obj.parent != None and obj.parent.parent != None and obj.parent.parent.get("TYPE") == "RE_CHAIN_NODE" else None
+			obj.scale = angleLimitConeScale(nodeObj,self.coneDisplaySize) if nodeObj != None else (self.coneDisplaySize,)*3
 def update_groupSize(self, context):
 	for obj in bpy.data.objects:
 		if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP" and obj.type == "CURVE":
@@ -120,17 +161,7 @@ def update_AngleLimitMode(self, context):
 				if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME":
 					for frameChild in child.children:
 						if frameChild.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER":					
-							#Determine cone scale
-							xScaleModifier = 1.0
-							yScaleModifier = 1.0
-							zScaleModifier = 1.0
-							if obj.re_chain_chainnode.angleMode == "2":#Hinge angle mode
-								yScaleModifier = .01
-							elif obj.re_chain_chainnode.angleMode == "4":#Limit oval angle mode
-								zScaleModifier = .5
-							elif obj.re_chain_chainnode.angleMode == "5":#Limit elliptic angle mode
-								yScaleModifier = .5
-							frameChild.scale = (bpy.context.scene.re_chain_toolpanel.coneDisplaySize*xScaleModifier,bpy.context.scene.re_chain_toolpanel.coneDisplaySize*yScaleModifier,bpy.context.scene.re_chain_toolpanel.coneDisplaySize*zScaleModifier)
+							frameChild.scale = angleLimitConeScale(obj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
 							
 def update_AngleLimitRad(self, context):
 	obj = self.id_data
@@ -149,6 +180,7 @@ def update_AngleLimitRad(self, context):
 								else:
 									modifier["Socket_0"] = obj.re_chain_chainnode.angleLimitRad
 								modifier.node_group.interface_update(context)
+								frameChild.scale = angleLimitConeScale(obj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)#the shape depends on the angle
 								#print("Set modifier value")
 							#frameChild.data.spot_size = obj.re_chain_chainnode.angleLimitRad
 
@@ -1971,6 +2003,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		name = "Angle Limit Distance",
 		description = "Used by Cone Box (the slab |z| <= this x length) and Oval (frame Z squeezed by this; 0 locks Z) only (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
+		update = update_AngleLimitMode
 		)
 	angleLimitRestitution: FloatProperty(
 		name = "Angle Limit Restitution",

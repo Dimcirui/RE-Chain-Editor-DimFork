@@ -9,7 +9,7 @@ from .file_re_chain import readREChain,writeREChain
 from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
-from .re_chain_propertyGroups import (getChainHeader,
+from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
 									  getWindSettings,
 									  getChainSettings,
 									  getChainGroup,
@@ -748,17 +748,7 @@ def importChainFile(filepath,options,isChain2 = False):
 				#Force update function to run so that the cone updates
 				nodeObj.re_chain_chainnode.angleLimitRad = nodeObj.re_chain_chainnode.angleLimitRad
 				nodeObj.re_chain_chainnode.collisionRadius = nodeObj.re_chain_chainnode.collisionRadius
-				#Determine cone scale
-				xScaleModifier = 1.0
-				yScaleModifier = 1.0
-				zScaleModifier = 1.0
-				if nodeObj.re_chain_chainnode.angleMode == "2":#Hinge angle mode
-					yScaleModifier = .01
-				elif nodeObj.re_chain_chainnode.angleMode == "4":#Limit oval angle mode
-					zScaleModifier = .5
-				elif nodeObj.re_chain_chainnode.angleMode == "5":#Limit elliptic angle mode
-					yScaleModifier = .5
-				lightObj.scale = (bpy.context.scene.re_chain_toolpanel.coneDisplaySize*xScaleModifier,bpy.context.scene.re_chain_toolpanel.coneDisplaySize*yScaleModifier,bpy.context.scene.re_chain_toolpanel.coneDisplaySize*zScaleModifier)
+				lightObj.scale = angleLimitConeScale(nodeObj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
 				
 				#chainEntryCollection.objects.link(lightObj)
 				
@@ -772,8 +762,9 @@ def importChainFile(filepath,options,isChain2 = False):
 				
 				constraint = nodeObj.constraints.new(type = "COPY_ROTATION")
 				constraint.target = armature
-				if currentBone != None:
-					constraint.subtarget = currentBone.name #.split(":")[len(bone.name.split(":"))-1]
+				if currentBone != None:#the angle limit frame is in the PARENT bone's rotation in MH Wilds (Physics_Sim)
+					constraint.subtarget = currentBone.parent.name if currentBone.parent != None else ""
+				nodeObj["angleLimitFrameOnParent"] = 1
 				#terminalNameHashDict[hash_wide(currentBone.name)] = nodeObj
 				constraint.name = "BoneRotation"
 				

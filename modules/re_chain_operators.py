@@ -9,7 +9,7 @@ from bpy.types import Operator
 from .blender_re_chain import createEmpty,createCurve,alignChains,alignCollisions,checkNameUsage,checkChainSettingsIDUsage,checkWindSettingsIDUsage,findHeaderObj,syncCollisionOffsets,createChainCollection,getCollection,createCurveEmpty,createFakeEmptySphere,lockObjTransforms,setChainBoneColor
 from .file_re_chain import ChainHeaderData,ChainSettingsData,WindSettingsData,ChainGroupData,ChainNodeData,ChainJiggleData,ChainCollisionData,ChainLinkData,ChainLinkNode
 from .file_re_chain2 import Chain2HeaderData,Chain2SettingsData,Chain2WindSettingsData,Chain2GroupData,Chain2NodeData,Chain2JiggleData,Chain2CollisionData,Chain2LinkData,Chain2LinkNode
-from .re_chain_propertyGroups import getChainHeader,getWindSettings,getChainSettings,getChainGroup,getChainNode,getChainJiggle,getChainLink,getChainCollision,getChainLinkCollisionNode
+from .re_chain_propertyGroups import angleLimitConeScale,getChainHeader,getWindSettings,getChainSettings,getChainGroup,getChainNode,getChainJiggle,getChainLink,getChainCollision,getChainLinkCollisionNode
 from .ui_re_chain_panels import tag_redraw
 from .blender_utils import showErrorMessageBox,outlinerShowObject
 from .re_chain_presets import saveAsPreset,readPresetJSON
@@ -120,8 +120,9 @@ class WM_OT_ChainFromBone(Operator):
 					
 					constraint = nodeObj.constraints.new(type = "COPY_ROTATION")
 					constraint.target = armature
-					constraint.subtarget = bone.name
+					constraint.subtarget = bone.parent.name if bone.parent != None else ""#the angle limit frame is in the PARENT bone's rotation in MH Wilds (Physics_Sim)
 					constraint.name = "BoneRotation"
+					nodeObj["angleLimitFrameOnParent"] = 1
 					
 					frame = createEmpty(nodeObj.name+"_ANGLE_LIMIT", [("TYPE","RE_CHAIN_NODE_FRAME")],nodeObj,chainEntryCollection)
 					frame.empty_display_type = "ARROWS"
@@ -211,17 +212,7 @@ class WM_OT_ChainFromBone(Operator):
 					
 					#Force update function to run so that the cone updates
 					nodeObj.re_chain_chainnode.angleLimitRad = nodeObj.re_chain_chainnode.angleLimitRad
-					#Determine cone scale
-					xScaleModifier = 1.0
-					yScaleModifier = 1.0
-					zScaleModifier = 1.0
-					if nodeObj.re_chain_chainnode.angleMode == "2":#Hinge angle mode
-						yScaleModifier = .01
-					elif nodeObj.re_chain_chainnode.angleMode == "4":#Limit oval angle mode
-						zScaleModifier = .5
-					elif nodeObj.re_chain_chainnode.angleMode == "5":#Limit elliptic angle mode
-						yScaleModifier = .5
-					lightObj.scale = (bpy.context.scene.re_chain_toolpanel.coneDisplaySize*xScaleModifier,bpy.context.scene.re_chain_toolpanel.coneDisplaySize*yScaleModifier,bpy.context.scene.re_chain_toolpanel.coneDisplaySize*zScaleModifier)
+					lightObj.scale = angleLimitConeScale(nodeObj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
 					
 					#chainCollection.objects.link(lightObj)
 				
@@ -992,6 +983,27 @@ def hasChildNode(obj):
 			result = True
 			break
 	return result
+
+class WM_OT_FixAngleLimitFrames(Operator):
+	bl_label = "Put Angle Limits on Parent Bones"
+	bl_idname = "re_chain.fix_angle_limit_frames"
+	bl_description = "MH Wilds measures each node's angle limit direction in its PARENT bone's rotation (node i-1's bone; the joint the chain hangs from for the first node). Chains imported before this fix showed the cone in the node's own bone: this moves every node in the chain collection (or the selected chain groups) onto its parent bone and redraws the cones at their real angle. The file's angle limit directions are not changed. Directions made with Align Angle Limits before this fix were computed in the old space: align them again"
+	bl_options = {'UNDO'}
+	def execute(self, context):
+		from .re_chain_propertyGroups import fixAngleLimitFrame
+		groups = [obj for obj in context.selected_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP"]
+		if groups:
+			nodes = [child for group in groups for child in group.children_recursive if child.get("TYPE",None) == "RE_CHAIN_NODE"]
+		else:
+			collection = context.scene.re_chain_toolpanel.chainCollection
+			nodes = [obj for obj in (collection.all_objects if collection != None else []) if obj.get("TYPE",None) == "RE_CHAIN_NODE"]
+		for nodeObj in nodes:
+			fixAngleLimitFrame(nodeObj,context)
+		self.report({"INFO"},f"Put the angle limits of {len(nodes)} node(s) on their parent bones.")
+		return {'FINISHED'}
+	@classmethod
+	def poll(self,context):
+		return context.scene.re_chain_toolpanel.chainCollection is not None
 
 class WM_OT_AlignFrames(Operator):
 	bl_label = "Align Angle Limits to Next Node"
