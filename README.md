@@ -23,6 +23,7 @@ chain2 and clsp. See the original repository for installation and usage.
 
 **Collisions**
 
+- Capsule nodes are drawn as the capsule the game collides with, reaching toward the next node.
 - CLSP plane colliders: import and export.
 - *Create Full Body CLSP* (Pose Mode panel) creates the full body CLSP of the MH Wilds player skeleton.
 - CLSP Flags A of groups and links can be set by ticking body parts of that CLSP.
