@@ -1,7 +1,8 @@
 #murmur3 hash algorithm
 #Credit to Darkness for adapting this
 def hash(key, seed=0xffffffff):
-    key = bytearray(key, 'utf8')
+    #A str is hashed as UTF-8; bytes as they are
+    key = bytearray(key, 'utf8') if isinstance(key, str) else bytearray(key)
 
     def fmix(h):
         h ^= h >> 16
@@ -58,9 +59,7 @@ def hash(key, seed=0xffffffff):
 
 
 def hash_wide(key, seed=0xffffffff):
-    key_temp = ''
-
-    for char in key:
-        key_temp += char + '\x00'
-
-    return hash(key_temp, seed)
+    #RE Engine hashes the wide string: UTF-16LE. Appending a zero after each character and hashing that as
+    #UTF-8 matched only for ASCII, so bone names with other characters (Chinese, accents) got other hashes
+    #than the game's and RE Mesh Editor's
+    return hash(key.encode('utf-16le'), seed)
