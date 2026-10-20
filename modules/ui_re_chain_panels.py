@@ -122,6 +122,7 @@ class OBJECT_PT_ChainPoseModePanel(Panel):
 		layout.label(text="Collision Tools")
 		layout.prop(re_chain_toolpanel, "collisionShape")
 		layout.operator("re_chain.collision_from_bone")
+		layout.operator("re_chain.create_full_body_clsp")
 		layout.label(text="Extra Tools")
 		layout.operator("re_chain.rename_bone_chain")
 		layout.operator("re_chain.create_chain_bone_group")
@@ -162,6 +163,9 @@ class OBJECT_PT_ChainPresetPanel(Panel):
 		layout.label(text="Wind Settings Preset")
 		layout.prop(re_chain_toolpanel, "chainWindSettingsPresets")
 		layout.operator("re_chain.apply_wind_settings_preset")
+		layout.label(text="Chain Preset (setting, group and node)")
+		layout.prop(re_chain_toolpanel, "chainPresets")
+		layout.operator("re_chain.apply_chain_preset")
 """
 class OBJECT_PT_ChainUtilsPanel(Panel):
 	bl_label = "Chain Tools"
@@ -523,7 +527,9 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 			col2.prop(re_chain_chaingroup, "nodeInterpolationMode")
 		
 		col2.prop(re_chain_chaingroup, "colliderQualityLevel")
-		col2.prop(re_chain_chaingroup, "clspFlags0")
+		row = col2.row()
+		row.prop(re_chain_chaingroup, "clspFlags0")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaingroup.clspFlags0"
 		col2.prop(re_chain_chaingroup, "clspFlags1")
 		
 		col2.prop(re_chain_chaingroup, "autoBlendCheckNodeNo")
@@ -788,7 +794,9 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 			#Greyed: the setting's Scene Colliders switch is off, so the CLSP mask is not used
 			header, setting = linkCollisionSetting(object)
 			sceneOn = setting == None or setting.re_chain_chainsettings.groupDefaultAttr & 0x10000
-			greyed(linkCol,sceneOn).prop(re_chain_chainlink, "clspFlags0")
+			row = greyed(linkCol,sceneOn).row()
+			row.prop(re_chain_chainlink, "clspFlags0")
+			row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink.clspFlags0"
 			greyed(linkCol,sceneOn).prop(re_chain_chainlink, "clspFlags1")
 		box = layout.box()
 		from .re_chain_names import flagLabel

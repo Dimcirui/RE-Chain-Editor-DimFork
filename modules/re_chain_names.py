@@ -79,3 +79,14 @@ BIT_FLAG_NAMES = {
 	}
 for _i in range(8):
 	BIT_FLAG_NAMES[f"re_chain_header.collisionFilterHitBits{_i}"] = HIT_FLAG_NAMES
+
+#CLSP Flags A of groups and links: one bit per shape of the full body CLSP that Create Full Body CLSP makes
+#(Presets/ClspPresets/full_body.clsp.3, MH Wilds player skeleton). Other CLSP files may use other bits
+FULL_BODY_CLSP_NAMES = [(0x1,"Hip_HJ_00",None),(0x2,"Spine_0",None),(0x4,"Spine_1",None),(0x8,"Spine_2",None),
+	(0x10,"Neck_0 > L_UpperArm",None),(0x20,"Neck_0 > R_UpperArm",None),(0x40,"L_UpperArm > L_Forearm",None),(0x80,"R_UpperArm > R_Forearm",None),
+	(0x100,"L_Forearm > L_Hand",None),(0x200,"R_Forearm > R_Hand",None),(0x400,"L_Hand > L_MiddleF1",None),(0x800,"R_Hand > R_MiddleF1",None),
+	(0x1000,"Neck_0 > Head",None),(0x2000,"Head",None),(0x4000,"L_Thigh > L_Knee",None),(0x8000,"R_Thigh > R_Knee",None),
+	(0x10000,"L_Shin > L_Foot",None),(0x20000,"R_Shin > R_Foot",None),(0x40000,"L_Foot > L_Toe",None),(0x80000,"R_Foot > R_Toe",None),
+	(0x800000,"Hip_HJ_00 (second shape)",None)]
+BIT_FLAG_NAMES["re_chain_chaingroup.clspFlags0"] = FULL_BODY_CLSP_NAMES
+BIT_FLAG_NAMES["re_chain_chainlink.clspFlags0"] = FULL_BODY_CLSP_NAMES

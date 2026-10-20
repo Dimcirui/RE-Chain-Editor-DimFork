@@ -492,6 +492,9 @@ class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 	
 	def getWindSettingsPresets(self,context):
 		return reloadPresets("WindSettings")
+
+	def getChainPresets(self,context):
+		return reloadPresets("Chain") + reloadPresets("ChainPresets")
 	
 	collisionShape: EnumProperty(
 		name="",
@@ -510,6 +513,11 @@ class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 		name="",
 		description="Set preset to be used by Apply Chain Settings Preset button",
 		items= getChainSettingsPresets
+		)
+	chainPresets: EnumProperty(
+		name="",
+		description="Set preset to be used by Apply Chain Preset button",
+		items=getChainPresets
 		)
 	chainGroupPresets: EnumProperty(
 		name="",

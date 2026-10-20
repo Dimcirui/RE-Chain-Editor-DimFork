@@ -1236,7 +1236,7 @@ class WM_OT_SavePreset(Operator):
 	bl_label = "Save Selected As Preset"
 	bl_idname = "re_chain.save_selected_as_preset"
 	bl_context = "objectmode"
-	bl_description = "Save selected chain object as a preset for easy reuse and sharing. Presets can be accessed using the Open Preset Folder button"
+	bl_description = "Save the selected chain object as a preset for easy reuse and sharing. With several selected (a chain setting, a chain group and a chain node), they are saved together as one chain preset. Presets can be accessed using the Open Preset Folder button"
 	presetName : bpy.props.StringProperty(name = "Enter Preset Name",default = "newPreset")
 	
 	@classmethod
@@ -1254,6 +1254,40 @@ class WM_OT_SavePreset(Operator):
 		return context.window_manager.invoke_props_dialog(self)
 
 		return {'FINISHED'}
+class WM_OT_CreateFullBodyClsp(Operator):
+	bl_label = "Create Full Body CLSP"
+	bl_idname = "re_chain.create_full_body_clsp"
+	bl_options = {'UNDO'}
+	bl_description = "Import the bundled full body CLSP (MH Wilds player skeleton: hip, spine, arms, hands, head, legs and feet) onto the active armature as a new CLSP collection. Each shape has its own bit, which the CLSP Flags A tick boxes of groups and links use"
+	def execute(self, context):
+		from .blender_re_clsp import importCLSPFile
+		filepath = os.path.join(os.path.dirname(os.path.split(os.path.abspath(__file__))[0]),"Presets","ClspPresets","full_body.clsp.3")
+		if not importCLSPFile(filepath,{"targetArmature": context.active_object.data.name}):
+			return {'CANCELLED'}
+		self.report({"INFO"},"Created full body CLSP.")
+		return {'FINISHED'}
+	@classmethod
+	def poll(self,context):
+		return context.active_object is not None and context.active_object.type == "ARMATURE"
+
+class WM_OT_ApplyChainPreset(Operator):
+	bl_label = "Apply Chain Preset"
+	bl_idname = "re_chain.apply_chain_preset"
+	bl_description = "Apply a chain preset (a chain setting, a chain group and a chain node saved together) to the selected objects: each takes the part of its type. Note that frame orientations are not changed by presets"
+	def execute(self, context):
+		from .re_chain_presets import readChainPresetJSON
+		enumValue = context.scene.re_chain_toolpanel.chainPresets
+		presetsPath = os.path.join(os.path.dirname(os.path.split(os.path.abspath(__file__))[0]),"Presets")
+		finished = readChainPresetJSON(os.path.join(presetsPath,enumValue),context.selected_objects)
+		tag_redraw(context)
+		if finished:
+			self.report({"INFO"},"Applied chain preset.")
+			return {'FINISHED'}
+		return {'CANCELLED'}
+	@classmethod
+	def poll(self,context):
+		return bool(context.selected_objects) and bool(context.scene.re_chain_toolpanel.chainPresets)
+
 class WM_OT_CreateChainBoneGroup(Operator):
 	bl_label = "Create Bone Group From Chains"
 	bl_idname = "re_chain.create_chain_bone_group"
@@ -1989,7 +2023,8 @@ class WM_OT_SetAttrFlags(Operator):
 	
 
 # The bit flag fields edited by re_chain.set_bit_flags: "property group.field" -> (object TYPE, [(bit, name, original name)])
-BIT_FLAG_FIELDS = {target: ("RE_CHAIN_LINK" if target.startswith("re_chain_chainlink.") else "RE_CHAIN_HEADER", bits) for target, bits in BIT_FLAG_NAMES.items()}
+BIT_FLAG_OBJECT_TYPES = {"re_chain_chainlink":"RE_CHAIN_LINK","re_chain_header":"RE_CHAIN_HEADER","re_chain_chaingroup":"RE_CHAIN_CHAINGROUP"}
+BIT_FLAG_FIELDS = {target: (BIT_FLAG_OBJECT_TYPES[target.split(".")[0]], bits) for target, bits in BIT_FLAG_NAMES.items()}
 
 def _bitFlagProps():
 	return {f"bit{i}": bpy.props.BoolProperty(name=f"Bit {i}", default=False) for i in range(32)}
@@ -2008,7 +2043,7 @@ class WM_OT_SetBitFlags(Operator):
 
 	@classmethod
 	def poll(self,context):
-		return context.active_object is not None and context.active_object.get("TYPE") in ("RE_CHAIN_LINK","RE_CHAIN_HEADER")
+		return context.active_object is not None and context.active_object.get("TYPE") in BIT_FLAG_OBJECT_TYPES.values()
 
 	def draw(self,context):
 		layout = self.layout
@@ -2038,13 +2073,15 @@ class WM_OT_SetBitFlags(Operator):
 		listed = self.shown
 		for bit, name, legacy in bits:
 			listed |= bit
-		value = sum(1 << i for i in range(31) if listed & (1 << i) and getattr(self, f"bit{i}"))
+		value = sum(1 << i for i in range(32) if listed & (1 << i) and getattr(self, f"bit{i}"))
 		#Apply to the active object and the selected objects of its type
 		targets = {context.active_object} | {obj for obj in context.selected_objects if obj.get("TYPE") == objType}
 		for obj in targets:
 			propertyGroup = getattr(obj, groupName)
 			#Keep the bits the dialog did not list
-			setattr(propertyGroup, propName, (getattr(propertyGroup, propName) & ~listed) | value)
+			newValue = ((getattr(propertyGroup, propName) & ~listed) | value) & 0xFFFFFFFF
+			#Signed fields (CLSP Flags, -1 is every bit) keep bit 31 as the sign
+			setattr(propertyGroup, propName, newValue - (1 << 32) if newValue >= 1 << 31 else newValue)
 		self.report({"INFO"},f"Set {propName} on {len(targets)} object(s).")
 		tag_redraw(context)
 		return {'FINISHED'}
