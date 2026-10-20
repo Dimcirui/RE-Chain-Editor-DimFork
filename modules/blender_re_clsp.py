@@ -315,7 +315,7 @@ chainShapeEnumTranslationDict = {
 	}
 NO_JOINT_HASH = 2180083513#0x81F16F39, a joint field's "none": the shape hangs from its owner (the armature object)
 
-#A plane (kind 4, read from MonsterHunterWilds.exe by Physics_Sim, FUN_14a9fee60): normal n at +0x20, d at +0x2c,
+#A plane (kind 4): normal n at +0x20, d at +0x2c,
 #carried by its joint (or, with no joint, by the owner Transform): the plane is through n * -d along n.
 #In Blender: a wire plane whose local Z is n and whose origin is n * -d, in its bone's space (Child Of, like the
 #other shapes' offsets) or, with no joint, in the armature object's space (game y up -> Blender z up).

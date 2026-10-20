@@ -120,7 +120,7 @@ class WM_OT_ChainFromBone(Operator):
 					
 					constraint = nodeObj.constraints.new(type = "COPY_ROTATION")
 					constraint.target = armature
-					constraint.subtarget = bone.parent.name if bone.parent != None else ""#the angle limit frame is in the PARENT bone's rotation in MH Wilds (Physics_Sim)
+					constraint.subtarget = bone.parent.name if bone.parent != None else ""#the angle limit frame is in the PARENT bone's rotation in MH Wilds
 					constraint.name = "BoneRotation"
 					nodeObj["angleLimitFrameOnParent"] = 1
 					
@@ -640,20 +640,41 @@ class WM_OT_NewChainLink(Operator):
 class WM_OT_RefreshLinkCollisions(Operator):
 	bl_label = "Refresh Link Collisions"
 	bl_idname = "re_chain.refresh_link_collisions"
-	bl_description = "Point the selected links' collisions at the node pairs MH Wilds builds (Link Mode, Skip Group A / B) and redraw them as the game's midpoint spheres"
+	bl_description = "Point the link collisions at the node pairs MH Wilds builds (Link Mode, Skip Group A / B) and redraw them as the game's midpoint spheres: the selected links, or every link of the active chain collection"
 	bl_options = {'UNDO'}
 	def execute(self, context):
 		from .re_chain_propertyGroups import retargetLinkCollisions
-		count = 0
-		for obj in context.selected_objects:
-			if obj.get("TYPE") == "RE_CHAIN_LINK":
-				retargetLinkCollisions(obj,context)
-				count += 1
-		self.report({"INFO"},f"Refreshed the collisions of {count} chain link(s).")
+		links = [obj for obj in context.selected_objects if obj.get("TYPE") == "RE_CHAIN_LINK"]
+		if not links:
+			collection = context.scene.re_chain_toolpanel.chainCollection
+			links = [obj for obj in (collection.all_objects if collection != None else []) if obj.get("TYPE") == "RE_CHAIN_LINK"]
+		for obj in links:
+			retargetLinkCollisions(obj,context)
+		self.report({"INFO"},f"Refreshed the collisions of {len(links)} chain link(s).")
 		return {'FINISHED'}
 	@classmethod
 	def poll(self,context):
-		return any(obj.get("TYPE") == "RE_CHAIN_LINK" for obj in context.selected_objects)
+		return context.scene.re_chain_toolpanel.chainCollection is not None or any(obj.get("TYPE") == "RE_CHAIN_LINK" for obj in context.selected_objects)
+
+class WM_OT_RedrawAllChains(Operator):
+	bl_label = "Redraw All Chains"
+	bl_idname = "re_chain.redraw_all_chains"
+	bl_description = "Bring every chain in the scene to the current drawing: the angle limit cones on their parent bones at their real angle and shape, the link collisions on the node pairs the game builds, and the flag fields of older scenes"
+	bl_options = {'UNDO'}
+	def execute(self, context):
+		from .re_chain_propertyGroups import fixAngleLimitFrame,retargetLinkCollisions,migrateFlagFields
+		nodes = links = 0
+		for obj in context.scene.objects:
+			objType = obj.get("TYPE",None)
+			if objType == "RE_CHAIN_NODE":
+				fixAngleLimitFrame(obj,context)
+				nodes += 1
+			elif objType == "RE_CHAIN_LINK":
+				retargetLinkCollisions(obj,context)
+				links += 1
+		migrateFlagFields(context.scene)
+		self.report({"INFO"},f"Redrew {nodes} node(s) and {links} link(s).")
+		return {'FINISHED'}
 
 class WM_OT_CreateChainLinkCollision(Operator):
 	bl_label = "Create Chain Link Collision"
@@ -1805,80 +1826,80 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	AngleLimit : bpy.props.BoolProperty(
 		name="Angle Limit",
-		description="0x2: the angle limits (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x2: the angle limits",
 		default = False)
 	ExtraNode : bpy.props.BoolProperty(
 		name="Extra Tail Node",
-		description="0x20000: an extra node after the tip (the last runtime node gets no joint). The extra ROOT node is node attribute 0x2 (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x20000: an extra node after the tip (the last runtime node gets no joint). The extra ROOT node is node attribute 0x2",
 		default = False)
 	CollisionDefault : bpy.props.BoolProperty(
 		name="Collision Default",
-		description="0x8: the collision passes come from the setting's Group Default Attribute; the group's own pass bits (Self ... Group, Character) are then ignored (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x8: the collision passes come from the setting's Group Default Attribute; the group's own pass bits (Self ... Group, Character) are then ignored",
 		default = False)
 	CollisionSelf : bpy.props.BoolProperty(
 		name="Collision Self",
-		description="0x10: self collision pass (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x10: self collision pass",
 		default = False)
 	CollisionModel : bpy.props.BoolProperty(
 		name="Collision Model",
-		description="0x20: the chain's own (model) collisions pass (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x20: the chain's own (model) collisions pass",
 		default = False)
 	CollisionVGround : bpy.props.BoolProperty(
 		name="Collision VGround",
-		description="0x40: virtual ground pass (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x40: virtual ground pass",
 		default = False)
 	CollisionCollider : bpy.props.BoolProperty(
 		name="Collision Environment (Collider)",
-		description="0x80: the physics world's triangles pass (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x80: the physics world's triangles pass",
 		default = False)
 	CollisionGroup : bpy.props.BoolProperty(
 		name="Collision Group",
-		description="0x100: group pass (FUN_14a5fd220) (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x100: group pass",
 		default = False)
 	EnablePartBlend : bpy.props.BoolProperty(
 		name="Enable Part Blend",
-		description="0x200: no reader found in MH Wilds (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x200: no reader found in MH Wilds",
 		default = False)
 	WindDefault : bpy.props.BoolProperty(
 		name="Wind Default",
-		description="0x400: the wind ID comes from the setting (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x400: the wind ID comes from the setting",
 		default = False)
 	TransAnimation : bpy.props.BoolProperty(
 		name="Trans Animation",
-		description="0x800: segment lengths from the pose (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x800: segment lengths from the pose",
 		default = False)
 	AngleLimitRestitution : bpy.props.BoolProperty(
 		name="Angle Limit Restitution",
-		description="0x1000: the angle limit bounce (Restitution / Stop Speed); Hinge only (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x1000: the angle limit bounce (Restitution / Stop Speed); Hinge only",
 		default = False)
 	StretchBoth : bpy.props.BoolProperty(
 		name="Stretch Both",
-		description="0x2000 (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x2000",
 		default = False)
 	EndRotConstraint : bpy.props.BoolProperty(
 		name="End Rot Constraint",
-		description="0x4000 (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x4000",
 		default = False)
 	EnableEnvWind : bpy.props.BoolProperty(
 		name="Enable Env Wind",
-		description="0x8000: the stage (environment) wind, scaled by Env Wind Effect Coefficient (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x8000: the stage (environment) wind, scaled by Env Wind Effect Coefficient",
 		default = False)
 	ScaleAnimation : bpy.props.BoolProperty(
 		name="Scale Animation",
-		description="0x4: scale from the joint (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x4: scale from the joint",
 		default = False)
 	CollisionCharacter : bpy.props.BoolProperty(
 		name="Collision Scene Colliders (Character)",
-		description="0x10000: the scene colliders (CLSP) pass (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x10000: the scene colliders (CLSP) pass",
 		default = False)
 	#chain2
 	UseBitFlag : bpy.props.BoolProperty(
 		name="Use Bit Flag",
-		description="0x40000: no reader found in MH Wilds (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x40000: no reader found in MH Wilds",
 		default = False)
 	StretchBothAutoScale : bpy.props.BoolProperty(
 		name="Stretch Both Auto Scale",
-		description="0x80000 (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x80000",
 		default = False)
 	
 	def draw(self,context):
@@ -1960,6 +1981,76 @@ class WM_OT_SetAttrFlags(Operator):
 			
 		return context.window_manager.invoke_props_dialog(self)
 	
+
+# The bit flag fields edited by re_chain.set_bit_flags: "property group.field" -> (object TYPE, [(bit, label)])
+BIT_FLAG_FIELDS = {
+	"re_chain_chainlink.connectFlagBits": ("RE_CHAIN_LINK", [(0x1, "Straight A[j] - B[j] (Neighbour)"), (0x2, "Diagonal A[j] - B[j+1] (Upper): pulls only, no collision"), (0x4, "Diagonal A[j+1] - B[j] (Bottom): pulls only, no collision")]),
+	"re_chain_chainlink.linkAttrFlags": ("RE_CHAIN_LINK", [(0x1, "Stretch range (EnableStretch)")]),
+	"re_chain_header.errFlagBits": ("RE_CHAIN_HEADER", [(0x1, "Empty"), (0x2, "Not Found Ref Asset"), (0x4, "Not Found Include Asset")]),
+	"re_chain_header.chainAttrFlags": ("RE_CHAIN_HEADER", [(0x1, "Model Collision Preset"), (0x2, "Use the alternative restart iteration count"), (0x4, "Wind gate of that restart")]),
+	"re_chain_header.parameterFlag": ("RE_CHAIN_HEADER", [(0x1, "Reflect Environmental")]),
+}
+for _i in range(8):
+	BIT_FLAG_FIELDS[f"re_chain_header.collisionFilterHitBits{_i}"] = ("RE_CHAIN_HEADER", [(1, '0x1 (unknown)'), (2, 'Self'), (4, 'Model'), (8, 'Collider'), (16, 'Angle'), (32, 'Group'), (64, 'VGround'), (128, '0x80 (unknown)')])
+
+def _bitFlagProps():
+	return {f"bit{i}": bpy.props.BoolProperty(name=f"0x{1 << i:X}", default=False) for i in range(32)}
+
+class WM_OT_SetBitFlags(Operator):
+	bl_label = "Set Flags"
+	bl_description = "Tick the bits of this flag field. Bits without a known meaning that are already set stay listed so they can be kept or cleared"
+	bl_idname = "re_chain.set_bit_flags"
+	bl_context = "objectmode"
+	bl_options = {'UNDO','INTERNAL'}
+	__annotations__ = {"target": bpy.props.StringProperty(options={'HIDDEN'}), "shown": bpy.props.IntProperty(options={'HIDDEN'}), **_bitFlagProps()}
+
+	def _field(self):
+		groupName, propName = self.target.split(".")
+		return groupName, propName, BIT_FLAG_FIELDS[self.target]
+
+	@classmethod
+	def poll(self,context):
+		return context.active_object is not None and context.active_object.get("TYPE") in ("RE_CHAIN_LINK","RE_CHAIN_HEADER")
+
+	def draw(self,context):
+		layout = self.layout
+		groupName, propName, (objType, bits) = self._field()
+		known = 0
+		for bit, label in bits:
+			layout.prop(self, f"bit{bit.bit_length() - 1}", text=f"{label}")
+			known |= bit
+		for i in range(32):
+			if self.shown & (1 << i) and not known & (1 << i):
+				layout.prop(self, f"bit{i}", text=f"0x{1 << i:X} (unknown)")
+
+	def invoke(self,context,event):
+		if self.target not in BIT_FLAG_FIELDS:
+			return {'CANCELLED'}
+		groupName, propName, (objType, bits) = self._field()
+		value = getattr(getattr(context.active_object, groupName), propName)
+		self.shown = value
+		for i in range(32):
+			setattr(self, f"bit{i}", bool(value & (1 << i)))
+		return context.window_manager.invoke_props_dialog(self)
+
+	def execute(self, context):
+		if self.target not in BIT_FLAG_FIELDS:
+			return {'CANCELLED'}
+		groupName, propName, (objType, bits) = self._field()
+		listed = self.shown
+		for bit, label in bits:
+			listed |= bit
+		value = sum(1 << i for i in range(31) if listed & (1 << i) and getattr(self, f"bit{i}"))
+		#Apply to the active object and the selected objects of its type
+		targets = {context.active_object} | {obj for obj in context.selected_objects if obj.get("TYPE") == objType}
+		for obj in targets:
+			propertyGroup = getattr(obj, groupName)
+			#Keep the bits the dialog did not list
+			setattr(propertyGroup, propName, (getattr(propertyGroup, propName) & ~listed) | value)
+		self.report({"INFO"},f"Set {propName} on {len(targets)} object(s).")
+		tag_redraw(context)
+		return {'FINISHED'}
+
 #Chain Node
 class chainNodeAttrFlags(AndFlags):
 	def __init__(self):
@@ -1976,11 +2067,11 @@ class WM_OT_SetNodeAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	PartMotionBlend : bpy.props.BoolProperty(
 		name="Part Motion Blend",
-		description="0x1: not known in MH Wilds (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x1: not known in MH Wilds",
 		default = False)
 	Jiggle : bpy.props.BoolProperty(
 		name="Extra Root Node",
-		description="0x2 on the group's first node: a pinned extra root node is added and node 0 is freed (shown as Jiggle before) (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x2 on the group's first node: a pinned extra root node is added and node 0 is freed (shown as Jiggle before)",
 		default = False)
 	
 	def draw(self,context):
@@ -2048,23 +2139,23 @@ class WM_OT_SetSettingAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	Default : bpy.props.BoolProperty(
 		name="Default",
-		description="0x1: groups whose setting ID matches no setting fall back to this one (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x1: groups whose setting ID matches no setting fall back to this one",
 		default = False)
 	VirtualGroundRoot : bpy.props.BoolProperty(
 		name="Virtual Ground Root",
-		description="0x2: the low bit of the 2-bit Virtual Ground Type (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x2: the low bit of the 2-bit Virtual Ground Type",
 		default = False)
 	VirtualGroundTarget : bpy.props.BoolProperty(
 		name="Virtual Ground Target",
-		description="0x4: the high bit of the 2-bit Virtual Ground Type (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x4: the high bit of the 2-bit Virtual Ground Type",
 		default = False)
 	IgnoreSameGroupCollision : bpy.props.BoolProperty(
 		name="Ignore Same Setting Group Collision",
-		description="0x8: groups of the same setting do not collide with each other (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x8: groups of the same setting do not collide with each other",
 		default = False)
 	UseReduceDistanceCurve : bpy.props.BoolProperty(
 		name="Use Reduce Distance Curve",
-		description="0x10: follow the owner by the speed curve (MH Wilds, read from the exe by Physics_Sim)",
+		description="0x10: follow the owner by the speed curve",
 		default = False)
 	"""
 	VirtualGroundMask : bpy.props.BoolProperty(

@@ -281,10 +281,10 @@ class Chain2SettingsData():
 		self.motionForceCalcType = 0#Sometimes 1, Dead Rising npc57_Chain2
 		self.padding = 0
 		#MH Wilds: +176 is ElasticLimit (f32), +180 MotionForceCalcType (u8) and 3 bytes kept as they are
-		#(the runtime getters, vmovss / mov al, read from the exe by Physics_Sim: re/notes/chain2_runtime.md)
+		#(the runtime getters, vmovss / mov al)
 		self.elasticLimit = 0.0
 		#MH Wilds: +176 is ElasticLimit (f32), +180 MotionForceCalcType (u8) and 3 bytes kept as they are
-		#(the runtime getters, vmovss / mov al, read from the exe by Physics_Sim: re/notes/chain2_runtime.md)
+		#(the runtime getters, vmovss / mov al)
 		self.elasticLimit = 0.0
 		
 		#MH Wilds

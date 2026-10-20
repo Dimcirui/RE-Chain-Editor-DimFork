@@ -206,13 +206,19 @@ class OBJECT_PT_ChainHeaderPanel(Panel):
 		col2.alignment='RIGHT'
 		col2.use_property_split = True
 		#col2.prop(re_chain_header, "version")#Set by export
-		col2.prop(re_chain_header, "errFlags") 
+		row = col2.row()
+		row.prop(re_chain_header, "errFlagBits")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.errFlagBits"
 		col2.prop(re_chain_header, "masterSize")
 		col2.prop(re_chain_header, "rotationOrder")
 		col2.prop(re_chain_header, "defaultSettingIdx")
 		col2.prop(re_chain_header, "calculateMode")
-		col2.prop(re_chain_header, "chainAttrFlags")
-		col2.prop(re_chain_header, "parameterFlag")
+		row = col2.row()
+		row.prop(re_chain_header, "chainAttrFlags")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.chainAttrFlags"
+		row = col2.row()
+		row.prop(re_chain_header, "parameterFlag")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.parameterFlag"
 		col2.prop(re_chain_header, "calculateStepTime")
 		col2.prop(re_chain_header, "modelCollisionSearch")
 		if not isChain2:
@@ -224,14 +230,30 @@ class OBJECT_PT_ChainHeaderPanel(Panel):
 			col2.prop(re_chain_header, "taperedCollideMethod")
 			col2.prop(re_chain_header, "wilds_unkn1")
 			col2.prop(re_chain_header, "wilds_unkn2")
-		col2.prop(re_chain_header, "collisionFilterHit0")
-		col2.prop(re_chain_header, "collisionFilterHit1")
-		col2.prop(re_chain_header, "collisionFilterHit2")
-		col2.prop(re_chain_header, "collisionFilterHit3")
-		col2.prop(re_chain_header, "collisionFilterHit4")
-		col2.prop(re_chain_header, "collisionFilterHit5")
-		col2.prop(re_chain_header, "collisionFilterHit6")
-		col2.prop(re_chain_header, "collisionFilterHit7")
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits0")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits0"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits1")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits1"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits2")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits2"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits3")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits3"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits4")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits4"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits5")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits5"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits6")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits6"
+		row = col2.row()
+		row.prop(re_chain_header, "collisionFilterHitBits7")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits7"
 		
 class OBJECT_PT_WindSettingsPanel(Panel):
 	bl_label = "RE Chain Wind Settings"
@@ -697,8 +719,12 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		col2.prop(re_chain_chainlink, "distanceShrinkLimitCoef")
 		col2.prop(re_chain_chainlink, "distanceExpandLimitCoef") 
 		col2.prop(re_chain_chainlink, "linkMode")
-		col2.prop(re_chain_chainlink, "connectFlags")
-		col2.prop(re_chain_chainlink, "linkAttrFlags")
+		row = col2.row()
+		row.prop(re_chain_chainlink, "connectFlagBits")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink.connectFlagBits"
+		row = col2.row()
+		row.prop(re_chain_chainlink, "linkAttrFlags")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink.linkAttrFlags"
 		col2.prop(re_chain_chainlink, "skipGroupA")
 		col2.prop(re_chain_chainlink, "skipGroupB")
 		col2.prop(re_chain_chainlink, "linkOrder")
@@ -707,7 +733,7 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 			col2.prop(re_chain_chainlink, "clspFlags1")
 		from .re_chain_propertyGroups import linkCollisionNodePairs,linkCollisionObjects,linkCollisionSetting,LINK_COLLISION_FLAGS
 		box = layout.box()
-		box.label(text="As MH Wilds builds this link (read by Physics_Sim):")
+		box.label(text="As MH Wilds builds this link:")
 		pairs = linkCollisionNodePairs(object)
 		colCount = len(linkCollisionObjects(object))
 		if re_chain_chainlink.linkMode not in ("0","1"):
@@ -715,7 +741,7 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		else:
 			used = min(len(pairs),colCount) if colCount else len(pairs)
 			box.label(text=f"{len(pairs)} straight pairs; {colCount} link collisions (exported as Node Count, caps the pairs: {used} used)")
-		if not int(re_chain_chainlink.connectFlags) & 1:
+		if not re_chain_chainlink.connectFlagBits & 1:
 			box.label(text="No straight pairs (Connection Flags bit 1): the link collisions do nothing", icon="ERROR")
 		if bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2":
 			header, setting = linkCollisionSetting(object)
@@ -726,7 +752,6 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 				box.label(text=f"Link collision switched by {setting.name} (Default Setting Index {header.re_chain_header.defaultSettingIdx}), Group Default Attribute {attr}:")
 				for bit,label in LINK_COLLISION_FLAGS:
 					box.label(text=f"{'on ' if attr & bit else 'off'}  {hex(bit)}: against {label}", icon="CHECKBOX_HLT" if attr & bit else "CHECKBOX_DEHLT")
-		box.operator("re_chain.refresh_link_collisions")
 
 class OBJECT_PT_ChainLinkCollisionPanel(Panel):
 	bl_label = "RE Chain Link Collision Settings"
@@ -770,10 +795,12 @@ class OBJECT_PT_ChainVisibilityPanel(Panel):
 	def draw(self, context):
 		re_chain_toolpanel = context.scene.re_chain_toolpanel
 		layout = self.layout
+		layout.operator("re_chain.redraw_all_chains",icon = "FILE_REFRESH")
 		layout.operator("re_chain.hide_non_nodes")
 		layout.operator("re_chain.hide_non_angle_limits")
 		layout.operator("re_chain.hide_non_collisions")
 		layout.operator("re_chain.unhide_all")
+		layout.operator("re_chain.refresh_link_collisions")
 		
 		
 class OBJECT_PT_NodeVisPanel(Panel):

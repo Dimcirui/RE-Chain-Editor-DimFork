@@ -762,7 +762,7 @@ def importChainFile(filepath,options,isChain2 = False):
 				
 				constraint = nodeObj.constraints.new(type = "COPY_ROTATION")
 				constraint.target = armature
-				if currentBone != None:#the angle limit frame is in the PARENT bone's rotation in MH Wilds (Physics_Sim)
+				if currentBone != None:#the angle limit frame is in the PARENT bone's rotation in MH Wilds
 					constraint.subtarget = currentBone.parent.name if currentBone.parent != None else ""
 				nodeObj["angleLimitFrameOnParent"] = 1
 				#terminalNameHashDict[hash_wide(currentBone.name)] = nodeObj

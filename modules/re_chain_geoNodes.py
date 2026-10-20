@@ -583,7 +583,7 @@ def getChainLinkGeoNodeTree():
 
 def getLinkColGeoNodeTree():
 	"""MH Wilds' link collision: a sphere midway between the pair's nodes, of the link node's radius (times the
-	chain's scale; read by Physics_Sim, FUN_14a5e2b40), and a thin line between the nodes."""
+	chain's scale), and a thin line between the nodes."""
 	TREENAME = "ChainLinkColGeoNodeTreeV4"
 	if TREENAME not in bpy.data.node_groups:
 		node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
@@ -658,7 +658,7 @@ def getLinkColGeoNodeTree():
 	return bpy.data.node_groups[TREENAME]
 
 def getLinkColGeoNodeTreeV2():
-	"""The drawing before Physics_Sim's review (a tube 3.5 times the radius along the pair): kept for old files."""
+	"""The drawing before the MH Wilds review (a tube 3.5 times the radius along the pair): kept for old files."""
 	TREENAME = "ChainLinkColGeoNodeTreeV2"
 	
 	if TREENAME not in bpy.data.node_groups:
@@ -775,7 +775,7 @@ def getLinkColGeoNodeTreeV2():
 	return node_group
 
 def getConeGeoNodeTree(isSubGroup = False):
-	"""The angle limit cone as MH Wilds clamps it (read from the exe by Physics_Sim, re/notes/angle_limits.md): the
+	"""The angle limit cone as MH Wilds clamps it: the
 	input is the FULL opening angle, the swing is half of it; tip at the node, axis +X, length 10 before the helper's
 	scale. Over 90 degrees half angle the cone opens backwards. (V1 used the angle as the base radius of a depth 2
 	cone: atan(angle / 2), so 180 degrees in the file drew +-57.5 instead of +-90.)"""
@@ -854,7 +854,7 @@ def getConeGeoNodeTree(isSubGroup = False):
 	return bpy.data.node_groups[TREENAME]
 
 def getConeGeoNodeTreeV1(isSubGroup = False):
-	"""The drawing before Physics_Sim's review, kept for old files."""
+	"""The drawing before the MH Wilds review, kept for old files."""
 	if isSubGroup:
 		TREENAME = "ChainConeSubGroupGeoNodeTreeV1"
 		mat = getConeSubGroupMat()
