@@ -30,6 +30,7 @@ from .modules.ui_re_chain_panels import OBJECT_PT_ChainObjectModePanel,OBJECT_PT
 from .modules.re_chain_operators import WM_OT_ChainFromBone,WM_OT_FixAngleLimitFrames,WM_OT_CollisionFromBones,WM_OT_AlignChainsToBones,WM_OT_AlignFrames,WM_OT_PointFrame,WM_OT_CopyChainProperties,WM_OT_PasteChainProperties,WM_OT_NewChainHeader,WM_OT_ApplyChainSettingsPreset,WM_OT_NewChainSettings,WM_OT_NewWindSettings,WM_OT_NewChainJiggle,WM_OT_ApplyChainGroupPreset,WM_OT_ApplyChainNodePreset,WM_OT_ApplyWindSettingsPreset,WM_OT_SavePreset,WM_OT_OpenPresetFolder,WM_OT_NewChainLink,WM_OT_CreateChainBoneGroup,WM_OT_SwitchToPoseMode,WM_OT_SwitchToObjectMode,WM_OT_HideNonNodes,WM_OT_HideNonAngleLimits,WM_OT_HideNonCollisions,WM_OT_UnhideAll,WM_OT_RenameBoneChain,WM_OT_ApplyAngleLimitRamp,WM_OT_AlignBoneTailsToAxis,WM_OT_SetAttrFlags,WM_OT_SetNodeAttrFlags,WM_OT_SetSettingAttrFlags,WM_OT_SetJiggleAttrFlags,WM_OT_CreateChainLinkCollision,WM_OT_RefreshLinkCollisions,WM_OT_RedrawAllChains,WM_OT_SetBitFlags,WM_OT_CreateFullBodyClsp,WM_OT_ApplyChainPreset,WM_OT_CreateChainSubGroup,WM_OT_SetCFILPath
 
 from .modules.blender_re_clsp import importCLSPFile,exportCLSPFile
+from .modules import re_chain_type_sync
 
 class REChainPreferences(AddonPreferences):
 	bl_idname = __name__
@@ -785,8 +786,10 @@ def register():
 	
 	bpy.types.Scene.re_chain_clipboard = bpy.props.PointerProperty(type=chainClipboardPropertyGroup)
 	bpy.app.handlers.load_post.append(re_chain_migrate_flags)
+	re_chain_type_sync.register()
 	
 def unregister():
+	re_chain_type_sync.unregister()
 	if re_chain_migrate_flags in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(re_chain_migrate_flags)
 	#addon_updater_ops.unregister()
