@@ -185,6 +185,58 @@ def update_AngleLimitRad(self, context):
 								#print("Set modifier value")
 							#frameChild.data.spot_size = obj.re_chain_chainnode.angleLimitRad
 
+def nodeCapsuleObject(nodeObj):
+	"""The capsule drawing of a chain node, or None. A duplicated node carries the original's reference, which
+	points back at the original node: that is not its own."""
+	capsuleObj = nodeObj.get("capsuleObject",None)
+	if capsuleObj != None and capsuleObj.get("chainNode",None) == nodeObj:
+		return capsuleObj
+	return None
+
+def updateNodeCapsule(nodeObj):
+	"""Create, refresh or remove the capsule drawing of a Capsule node. The game uses no capsule on the last node,
+	and collides with none when the two stretch rates add up to 1 or less: then nothing is drawn.
+
+	The drawing is its own object, not a child of the node: code that walks a node's children takes a second
+	child for the next node."""
+	from .re_chain_geoNodes import getNodeCapsuleGeoNodeTree
+	from .blender_re_chain import createCurveEmpty,lockObjTransforms
+	node = nodeObj.re_chain_chainnode
+	nextNode = next((child for child in nodeObj.children if child.get("TYPE",None) == "RE_CHAIN_NODE"),None)
+	capsuleObj = nodeCapsuleObject(nodeObj)
+	if node.collisionShape != "2" or nextNode == None:
+		if capsuleObj != None:
+			bpy.data.objects.remove(capsuleObj)
+			del nodeObj["capsuleObject"]
+		return None
+	if capsuleObj == None:
+		collection = nodeObj.users_collection[0] if nodeObj.users_collection else None
+		capsuleObj = createCurveEmpty(nodeObj.name + " CAPSULE",[("TYPE","RE_CHAIN_NODE_CAPSULE")],None,collection)
+		capsuleObj["chainNode"] = nodeObj
+		nodeObj["capsuleObject"] = capsuleObj
+		lockObjTransforms(capsuleObj)
+		capsuleObj.hide_select = True
+		capsuleObj.modifiers.new(name="REChainGeometryNodes",type='NODES')
+		try:
+			capsuleObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawCollisionsThroughObjects
+		except Exception:
+			pass
+	modifier = capsuleObj.modifiers["REChainGeometryNodes"]
+	nodeGroup = getNodeCapsuleGeoNodeTree()
+	if modifier.node_group != nodeGroup:
+		modifier.node_group = nodeGroup
+	keys = [f"Input_{i}" for i in range(5)] if bpy.app.version < (4,0,0) else [f"Socket_{i}" for i in range(5)]
+	collides = node.capsuleStretchRate0 + node.capsuleStretchRate1 > 1.0
+	for key, value in zip(keys,(nodeObj,nextNode,node.collisionRadius if collides else 0.0,node.capsuleStretchRate0,node.capsuleStretchRate1)):
+		modifier[key] = value
+	nodeGroup.interface_update(bpy.context)
+	return capsuleObj
+
+def update_NodeCapsule(self, context):
+	obj = self.id_data
+	if type(obj).__name__ == "Object" and obj.get("TYPE",None) == "RE_CHAIN_NODE":#Not the clipboard
+		updateNodeCapsule(obj)
+
 def update_NodeRadius(self, context):
 	obj = self.id_data
 	if type(obj).__name__ == "Object":#Check if it's an object to prevent issues with clipboard 
@@ -192,6 +244,8 @@ def update_NodeRadius(self, context):
 			obj.empty_display_size = obj.re_chain_chainnode.collisionRadius# * 100
 		else:
 			obj.empty_display_size = 0.01
+		if obj.get("TYPE",None) == "RE_CHAIN_NODE":
+			updateNodeCapsule(obj)
 
 
 def update_CollisionRadius(self, context):
@@ -256,6 +310,7 @@ def update_DrawCollisionsThroughObjects(self, context):
 		#"RE_CHAIN_COLLISION_CAPSULE_START",
 		#"RE_CHAIN_COLLISION_CAPSULE_END",
 		"RE_CHAIN_COLLISION_CAPSULE_ROOT",
+		"RE_CHAIN_NODE_CAPSULE",
 		]
 	for obj in bpy.data.objects:
 		if obj.get("TYPE",None) in collisionTypes:
@@ -2020,7 +2075,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		)
 	collisionRadius: FloatProperty(
 		name = "Collision Radius",
-		description = "Times the group's length scale; 0 (or below FLT_EPSILON) means no scene collision for the node",#TODO Add description
+		description = "Times the group's length scale; 0 means no collision for the node",
 		default = 0.03,
 		update=update_NodeRadius,
 		step = .1,
@@ -2033,17 +2088,19 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		)
 	capsuleStretchRate0: FloatProperty(
 		name = "Capsule Stretch Rate 0",
-		description = "The capsule's ends are next + rate0 x (node - next) and node + rate1 x (next - node); it collides only if rate0 + rate1 > 1, so 0 / 0 never collides",#TODO Add description
+		description = "How far the capsule reaches from the next node toward this one (1: all the way). The capsule collides only if the two rates add up to more than 1",
 		default = 1.0,
 		soft_min=0.000,
-		soft_max=1.000
+		soft_max=1.000,
+		update = update_NodeCapsule
 		)
 	capsuleStretchRate1: FloatProperty(
 		name = "Capsule Stretch Rate 1",
-		description = "See Capsule Stretch Rate 0: the capsule collides only if the two rates sum above 1",#TODO Add description
+		description = "How far the capsule reaches from this node toward the next one (1: all the way). The capsule collides only if the two rates add up to more than 1",
 		default = 1.0,
 		soft_min=0.000,
-		soft_max=1.000
+		soft_max=1.000,
+		update = update_NodeCapsule
 		)
 	attrFlags: IntProperty(
 		name="Attribute Flags",
@@ -2080,6 +2137,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 				("3", "ChainNodeCollisionShape_StretchCapsule", "No scene collision in MH Wilds"),
 			   ],
 		default = "1",
+		update = update_NodeCapsule
 		)
 	attachType: IntProperty(
 		name = "Attach Type",

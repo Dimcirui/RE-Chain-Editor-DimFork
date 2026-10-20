@@ -703,6 +703,88 @@ def getLinkColGeoNodeTree():
 		return node_group
 	return bpy.data.node_groups[TREENAME]
 
+def getNodeCapsuleGeoNodeTree():
+	"""A Capsule node's collision capsule: from the node toward the next node, its ends pulled in by the stretch
+	rates (next + rate0 x (node - next) and node + rate1 x (next - node)). Positions are taken relative to the
+	drawing object, so it draws right whatever that object's transform."""
+	TREENAME = "ChainNodeCapsuleGeoNodeTreeV1"
+	if TREENAME in bpy.data.node_groups:
+		return bpy.data.node_groups[TREENAME]
+	node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
+	nodes = node_group.nodes
+	links = node_group.links
+	for name, socketType in (("Node Object","NodeSocketObject"),("Next Node Object","NodeSocketObject"),("Radius","NodeSocketFloat"),("Rate 0","NodeSocketFloat"),("Rate 1","NodeSocketFloat")):
+		if bpy.app.version < (4,0,0):
+			node_group.inputs.new(socketType,name)
+		else:
+			node_group.interface.new_socket(name=name,description="Do not change this value manually, set it from the chain node",in_out="INPUT",socket_type=socketType)
+	inNode = nodes.new('NodeGroupInput')
+	nodeInfo = nodes.new('GeometryNodeObjectInfo')
+	nodeInfo.transform_space = 'RELATIVE'
+	links.new(inNode.outputs["Node Object"],nodeInfo.inputs["Object"])
+	nextInfo = nodes.new('GeometryNodeObjectInfo')
+	nextInfo.transform_space = 'RELATIVE'
+	links.new(inNode.outputs["Next Node Object"],nextInfo.inputs["Object"])
+	def lerpEnd(base, other, rate):
+		#base + rate x (other - base)
+		sub = nodes.new('ShaderNodeVectorMath')
+		sub.operation = "SUBTRACT"
+		links.new(other,sub.inputs[0])
+		links.new(base,sub.inputs[1])
+		scale = nodes.new('ShaderNodeVectorMath')
+		scale.operation = "SCALE"
+		links.new(sub.outputs["Vector"],scale.inputs[0])
+		links.new(rate,scale.inputs["Scale"])
+		add = nodes.new('ShaderNodeVectorMath')
+		add.operation = "ADD"
+		links.new(scale.outputs["Vector"],add.inputs[0])
+		links.new(base,add.inputs[1])
+		return add.outputs["Vector"]
+	end0 = lerpEnd(nextInfo.outputs["Location"],nodeInfo.outputs["Location"],inNode.outputs["Rate 0"])
+	end1 = lerpEnd(nodeInfo.outputs["Location"],nextInfo.outputs["Location"],inNode.outputs["Rate 1"])
+	lineNode = nodes.new('GeometryNodeCurvePrimitiveLine')
+	links.new(end0,lineNode.inputs["Start"])
+	links.new(end1,lineNode.inputs["End"])
+	circleNode = nodes.new('GeometryNodeCurvePrimitiveCircle')
+	circleNode.inputs["Resolution"].default_value = 16
+	links.new(inNode.outputs["Radius"],circleNode.inputs["Radius"])
+	tubeNode = nodes.new('GeometryNodeCurveToMesh')
+	links.new(lineNode.outputs["Curve"],tubeNode.inputs["Curve"])
+	links.new(circleNode.outputs["Curve"],tubeNode.inputs["Profile Curve"])
+	joinNode = nodes.new('GeometryNodeJoinGeometry')
+	links.new(tubeNode.outputs["Mesh"],joinNode.inputs["Geometry"])
+	for end in (end0,end1):
+		sphereNode = nodes.new('GeometryNodeMeshUVSphere')
+		sphereNode.inputs["Segments"].default_value = 16
+		sphereNode.inputs["Rings"].default_value = 8
+		links.new(inNode.outputs["Radius"],sphereNode.inputs["Radius"])
+		moveNode = nodes.new('GeometryNodeTransform')
+		links.new(sphereNode.outputs["Mesh"],moveNode.inputs["Geometry"])
+		links.new(end,moveNode.inputs["Translation"])
+		links.new(moveNode.outputs["Geometry"],joinNode.inputs["Geometry"])
+	materialNode = nodes.new('GeometryNodeSetMaterial')
+	materialNode.inputs["Material"].default_value = getCollisionMat()
+	links.new(joinNode.outputs["Geometry"],materialNode.inputs["Geometry"])
+	#A radius of 0 (no collision) draws nothing
+	compareNode = nodes.new('FunctionNodeCompare')
+	compareNode.data_type = 'FLOAT'
+	compareNode.operation = 'GREATER_THAN'
+	links.new(inNode.outputs["Radius"],compareNode.inputs[0])
+	compareNode.inputs[1].default_value = 0.0
+	switchNode = nodes.new('GeometryNodeSwitch')
+	switchNode.input_type = 'GEOMETRY'
+	links.new(compareNode.outputs["Result"],switchNode.inputs["Switch"])
+	links.new(materialNode.outputs["Geometry"],switchNode.inputs["True"])
+	outNode = nodes.new('NodeGroupOutput')
+	if bpy.app.version < (3,4,0):
+		outNode.inputs.new('NodeSocketGeometry','Geometry')
+	elif bpy.app.version < (4,0,0):
+		node_group.outputs.new('NodeSocketGeometry','Geometry')
+	else:
+		node_group.interface.new_socket(name="Geometry",description="",in_out="OUTPUT",socket_type="NodeSocketGeometry")
+	links.new(switchNode.outputs[0],outNode.inputs["Geometry"])
+	return node_group
+
 def getLinkColGeoNodeTreeV2():
 	"""The previous link collision drawing (a tube along the pair), kept for scenes that still use it; Redraw All
 	Chains replaces it."""

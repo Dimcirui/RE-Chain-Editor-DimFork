@@ -1050,6 +1050,11 @@ def importChainFile(filepath,options,isChain2 = False):
 				linkCollisionObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawLinkCollisionsThroughObjects
 	
 	setChainBoneColor(armature)
+	from .re_chain_propertyGroups import updateNodeCapsule
+	#A list: drawing a capsule adds an object to the collection being walked
+	for obj in list(chainCollection.all_objects):
+		if obj.get("TYPE",None) == "RE_CHAIN_NODE" and obj.re_chain_chainnode.collisionShape == "2":
+			updateNodeCapsule(obj)
 	windSettingsObjList.clear()
 	chainSettingsObjList.clear()
 	return True

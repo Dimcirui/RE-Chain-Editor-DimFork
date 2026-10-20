@@ -663,12 +663,14 @@ class WM_OT_RedrawAllChains(Operator):
 	bl_description = "Bring every chain in the scene to the current drawing: the angle limit cones on their parent bones at their real angle and shape, the link collisions on the node pairs the game builds, and the flag fields of older scenes"
 	bl_options = {'UNDO'}
 	def execute(self, context):
-		from .re_chain_propertyGroups import fixAngleLimitFrame,retargetLinkCollisions,migrateFlagFields
+		from .re_chain_propertyGroups import fixAngleLimitFrame,retargetLinkCollisions,migrateFlagFields,updateNodeCapsule
 		nodes = links = 0
-		for obj in context.scene.objects:
+		#A list: drawing a capsule adds an object to the scene being walked
+		for obj in list(context.scene.objects):
 			objType = obj.get("TYPE",None)
 			if objType == "RE_CHAIN_NODE":
 				fixAngleLimitFrame(obj,context)
+				updateNodeCapsule(obj)
 				nodes += 1
 			elif objType == "RE_CHAIN_LINK":
 				retargetLinkCollisions(obj,context)
@@ -1389,7 +1391,7 @@ class WM_OT_HideNonCollisions(Operator):
 		
 		for obj in bpy.context.scene.objects:
 			objType = obj.get("TYPE",None)
-			if objType == "RE_CHAIN_COLLISION_SINGLE" or objType == "RE_CHAIN_COLLISION_CAPSULE_ROOT" or objType == "RE_CHAIN_COLLISION_CAPSULE_START" or objType == "RE_CHAIN_COLLISION_CAPSULE_END" :
+			if objType == "RE_CHAIN_COLLISION_SINGLE" or objType == "RE_CHAIN_COLLISION_CAPSULE_ROOT" or objType == "RE_CHAIN_COLLISION_CAPSULE_START" or objType == "RE_CHAIN_COLLISION_CAPSULE_END" or objType == "RE_CHAIN_NODE_CAPSULE":
 				obj.hide_viewport = False
 			else:
 				obj.hide_viewport = True
