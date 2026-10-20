@@ -1,7 +1,7 @@
 bl_info = {
 	"name": "RE-Chain-Editor-DimFork",
-	"author": "NSA Cloud, alphaZomega, Forked by Dimcirui",
-	"version": (0, 15, 1),
+	"author": "NSA Cloud, alphaZomega, Forked by Dimcirui, Onimusha support by Ridog8",
+	"version": (0, 16, 0),
 	"blender": (3, 1, 2),
 	"location": "File > Import-Export",
 	"description": "Import and export RE Engine chain files.",
