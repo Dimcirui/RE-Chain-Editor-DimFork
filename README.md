@@ -13,7 +13,8 @@ chain2 and clsp. See the original repository for installation and usage.
 **Chain links**
 
 - Node pairs follow Link Mode and Skip Group A / B as MH Wilds builds them.
-- Link collisions are drawn as spheres at the middle of each node pair, with a dashed guide line.
+- The link draws every node pair the game builds: straight pairs as thin lines, diagonal pairs (pull only) dashed.
+- Link collisions are drawn as spheres at the middle of each pair.
 - The link panel shows how the game builds the link and which collision switches apply.
 
 **Angle limits**
