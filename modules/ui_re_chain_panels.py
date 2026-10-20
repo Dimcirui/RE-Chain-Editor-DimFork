@@ -694,6 +694,9 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		col2.prop(re_chain_chainlink, "skipGroupA")
 		col2.prop(re_chain_chainlink, "skipGroupB")
 		col2.prop(re_chain_chainlink, "linkOrder")
+		if bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2":
+			col2.prop(re_chain_chainlink, "clspFlags0")
+			col2.prop(re_chain_chainlink, "clspFlags1")
 
 class OBJECT_PT_ChainLinkCollisionPanel(Panel):
 	bl_label = "RE Chain Link Collision Settings"

@@ -2456,6 +2456,17 @@ class chainLinkPropertyGroup(bpy.types.PropertyGroup):
 				("5", "RotationOrder_XZY", ""),
 			   ]
 		)
+	#Chain2 (MH Wilds and newer)
+	clspFlags0: IntProperty(
+		name = "CLSP Flags A",
+		description="Bitflag that determines what CLSP Tag Groups the link collision collides with. Vanilla links mostly use the union of the two chain groups' CLSP Flags A.\nChain2 version 14 and above only",
+		default = -1,
+		)
+	clspFlags1: IntProperty(
+		name = "CLSP Flags B",
+		description="Bitflag that determines what CLSP Tag Groups of other objects the link collision collides with. Vanilla links mostly use 0.\nChain2 version 14 and above only",
+		default = -1,
+		)
 def getChainLink(ChainLinkData,targetObject,isChain2 = False):
 	#Done manually to be able to account for chain version differences eventually
 	targetObject.re_chain_chainlink.distanceShrinkLimitCoef = ChainLinkData.distanceShrinkLimitCoef
@@ -2466,19 +2477,24 @@ def getChainLink(ChainLinkData,targetObject,isChain2 = False):
 	targetObject.re_chain_chainlink.skipGroupA = ChainLinkData.skipGroupA
 	targetObject.re_chain_chainlink.skipGroupB = ChainLinkData.skipGroupB
 	targetObject.re_chain_chainlink.linkOrder = str(ChainLinkData.linkOrder)
-	
+	targetObject.re_chain_chainlink.clspFlags0 = getattr(ChainLinkData,"clspFlags0",-1)
+	targetObject.re_chain_chainlink.clspFlags1 = getattr(ChainLinkData,"clspFlags1",-1)
+
 
 def setChainLinkData(ChainLinkData,targetObject,isChain2 = False):
 	#TODO get chain group links
-	ChainLinkData.distanceShrinkLimitCoef = targetObject.re_chain_chainlink.distanceShrinkLimitCoef 
-	ChainLinkData.distanceExpandLimitCoef = targetObject.re_chain_chainlink.distanceExpandLimitCoef 
-	ChainLinkData.linkMode = int(targetObject.re_chain_chainlink.linkMode) 
+	ChainLinkData.distanceShrinkLimitCoef = targetObject.re_chain_chainlink.distanceShrinkLimitCoef
+	ChainLinkData.distanceExpandLimitCoef = targetObject.re_chain_chainlink.distanceExpandLimitCoef
+	ChainLinkData.linkMode = int(targetObject.re_chain_chainlink.linkMode)
 	ChainLinkData.connectFlags = int(targetObject.re_chain_chainlink.connectFlags)
 	ChainLinkData.linkAttrFlags = int(targetObject.re_chain_chainlink.linkAttrFlags)
-	ChainLinkData.skipGroupA = targetObject.re_chain_chainlink.skipGroupA 
-	ChainLinkData.skipGroupB = targetObject.re_chain_chainlink.skipGroupB 
+	ChainLinkData.skipGroupA = targetObject.re_chain_chainlink.skipGroupA
+	ChainLinkData.skipGroupB = targetObject.re_chain_chainlink.skipGroupB
 	ChainLinkData.linkOrder = int(targetObject.re_chain_chainlink.linkOrder)
-	
+	if hasattr(ChainLinkData,"clspFlags0"):#Chain2LinkData only
+		ChainLinkData.clspFlags0 = targetObject.re_chain_chainlink.clspFlags0
+		ChainLinkData.clspFlags1 = targetObject.re_chain_chainlink.clspFlags1
+
 		
 class chainClipboardPropertyGroup(bpy.types.PropertyGroup):
 	re_chain_type : StringProperty(default="NONE", options={'HIDDEN'})

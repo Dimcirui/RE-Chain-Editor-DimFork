@@ -632,7 +632,11 @@ class WM_OT_NewChainLink(Operator):
 			chainLinkObj.re_chain_chainlink.chainGroupBObject = chainLinkObj.re_chain_chainlink.chainGroupBObject
 			
 			getChainLink(chainLink,chainLinkObj)
-			
+			if isChain2 and groupAObj != None:
+				#Vanilla MH Wilds links mostly collide with the union of both groups' CLSP Flags A and nothing of B
+				chainLinkObj.re_chain_chainlink.clspFlags0 = groupAObj.re_chain_chaingroup.clspFlags0 | groupBObj.re_chain_chaingroup.clspFlags0
+				chainLinkObj.re_chain_chainlink.clspFlags1 = 0
+
 			self.report({"INFO"},"Created chain link object.")
 			bpy.context.view_layer.objects.active = chainLinkObj
 		else:

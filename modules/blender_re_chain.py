@@ -6,7 +6,7 @@ from math import radians
 
 from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath
 from .file_re_chain import readREChain,writeREChain
-from .file_re_chain2 import readREChain2,writeREChain2
+from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_propertyGroups import (getChainHeader,
@@ -1379,13 +1379,11 @@ def exportChainFile(filepath,options, version, isChain2 = False):
 				chainSettings = Chain2SettingsData()
 				
 				#MHWilds automatic fix for missing chain setting subdata
-				if len(chainSettingsObj.re_chain_chainsettings.subDataList_items) == 0 and version == 12:
-					newListItem = chainSettingsObj.re_chain_chainsettings.subDataList_items.add()
-					newListItem.values = (0,1,0,0,0,0,0)
-					
-					newListItem = chainSettingsObj.re_chain_chainsettings.subDataList_items.add()
-					newListItem.values = (0,1,0,0,77,0,0)
-				print(f"Detected missing MH Wilds chain setting subdata, added missing subdata to {chainSettingsObj.name}")
+				if len(chainSettingsObj.re_chain_chainsettings.subDataList_items) == 0 and version in MHWILDS_VERSION_SET:
+					for values in MHWILDS_DEFAULT_SETTINGS_SUBDATA:
+						newListItem = chainSettingsObj.re_chain_chainsettings.subDataList_items.add()
+						newListItem.values = values
+					print(f"Detected missing MH Wilds chain setting subdata, added missing subdata to {chainSettingsObj.name}")
 			else:
 				chainSettings = ChainSettingsData()
 				

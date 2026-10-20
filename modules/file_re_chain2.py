@@ -6,6 +6,9 @@ from .gen_functions import textColors,raiseWarning,raiseError,getPaddingAmount,g
 VERSION_DD2 = 4
 VERSION_DR = 9
 VERSION_MHWILDS = 12#Beta
+#Chain setting subdata present on every vanilla MH Wilds chain2 setting
+MHWILDS_DEFAULT_SETTINGS_SUBDATA = ((0,1,0,0,0,0,0),(0,1,0,0,77,0,0))
+MHWILDS_VERSION_SET = set([14])#12 and 13 are no longer used by MH Wilds
 VERSION_MHS3 = 15
 VERSION_ONIMUSHA = 17
 
@@ -242,23 +245,23 @@ class Chain2SettingsData():
 		self.settingsAttrFlags = 0 #ENUM
 		self.springCalcType = 0
 		self.windID = 0
-		self.windDelayType = 0
+		self.windDelayType = 1#Vanilla MH Wilds majority
 		self.gravityX = 0.0
 		self.gravityY = -9.8
 		self.gravityZ = 0.0
 		self.springMaxVelocity = 0.0
-		self.damping = 0.2
+		self.damping = 0.1
 		self.secondDamping = 0.05
 		self.secondDampingSpeed = 0.0
-		self.minDamping = 0.2
+		self.minDamping = 0.1
 		self.secondMinDamping = 0.05
 		self.dampingPow = 1.0
 		self.secondDampingPow = 1.0
 		self.collideMaxVelocity = 0.0
 		self.springForce = 0.0
 		self.springLimitRate = 0.0
-		self.reduceSelfDistanceRate = 0.0
-		self.secondReduceDistanceRate = 0.0
+		self.reduceSelfDistanceRate = 0.5
+		self.secondReduceDistanceRate = 0.5
 		self.secondReduceDistanceSpeed = 0.0
 		self.friction = 0.0
 		self.shockAbsorptionRate = 0.0
@@ -267,12 +270,12 @@ class Chain2SettingsData():
 		self.stretchInteractionRatio = 0.5
 		self.angleLimitInteractionRatio = 0.5
 		self.motionForce = 0.0
-		self.groupDefaultAttr = 0#ENUM
-		self.windEffectCoef = 0.0
+		self.groupDefaultAttr = 65536#ENUM CollisionCharacter
+		self.windEffectCoef = 0.5
 		self.velocityLimit = 0.0
 		self.hardness = 0.0
 		self.windDelaySpeed = 0.0
-		self.envWindEffectCoef = 1.0
+		self.envWindEffectCoef = 0.25
 		
 		#DR
 		self.motionForceCalcType = 0#Sometimes 1, Dead Rising npc57_Chain2
@@ -772,7 +775,7 @@ class Chain2GroupData():
 		self.hierarchyHash3 = 0
 		self.dampingNoise0 = 0.0
 		self.dampingNoise1 = 0.0
-		self.endRotConstMax = 12.5
+		self.endRotConstMax = 12.566370964050293#4pi, vanilla MH Wilds value
 		self.tagCount = 0
 		self.angleLimitDirectionMode = 0
 		self.subGroupCount = 0
