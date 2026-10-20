@@ -91,23 +91,15 @@ def update_RelationLinesVis(self, context):
 def angleLimitConeScale(nodeObj,size):
 	"""The (x, y, z) scale of a node's angle limit cone helper, in its frame (the cone's axis is X). Each mode's
 	shape as MH Wilds clamps the swing: Cone and
-	Elliptic are round (Elliptic runs the Cone code); Hinge keeps the frame's X-Y plane (Z flat); Oval squeezes Z
-	by Angle Limit Distance; Cone Box is the cone cut by the slab |z| <= distance x length (drawn squeezed to it).
-	Free, a 0 limit or one over 360 degrees clamp nothing: hidden."""
+	Elliptic are round (Elliptic runs the Cone code); Hinge keeps the frame's X-Y plane (Z flat). Oval and Cone Box
+	keep the scale: the cone tree shapes them. Free, a 0 limit or one over 360 degrees clamp nothing: hidden."""
 	from math import sin,pi
 	node = nodeObj.re_chain_chainnode
 	full = node.angleLimitRad
 	if node.angleMode == "0" or full <= 0.0 or full > 2.0 * pi + 1e-6:
 		return (0.0,0.0,0.0)#nothing to draw (a helper with no children: a zero scale is safe)
-	d = node.angleLimitDistance
-	z = 1.0
-	if node.angleMode == "2":
-		z = 0.01
-	elif node.angleMode == "4":
-		z = min(max(d,0.01),1.0)
-	elif node.angleMode == "3":
-		s = abs(sin(full * 0.5))
-		z = 1.0 if s < 1e-6 else min(max(d / s,0.01),1.0)
+	#Oval and Cone Box are shaped by the cone tree; Hinge is flat
+	z = 0.01 if node.angleMode == "2" else 1.0
 	return (size,size,size * z)
 
 def angleLimitFrameParentBone(nodeObj):
@@ -120,6 +112,25 @@ def angleLimitFrameParentBone(nodeObj):
 	if bone == None:
 		return None
 	return bone.parent.name if bone.parent != None else ""
+
+def setConeInputs(nodeObj,helperObj,context = None):
+	"""Give a cone helper the node's angle, Angle Mode and Angle Limit Distance, and its scale."""
+	modifier = helperObj.modifiers.get("REChainGeometryNodes")
+	if modifier == None or modifier.node_group == None:
+		return
+	node = nodeObj.re_chain_chainnode
+	keys = ("Input_0","Input_1","Input_2") if bpy.app.version < (4,0,0) else ("Socket_0","Socket_1","Socket_2")
+	modifier[keys[0]] = node.angleLimitRad
+	sockets = modifier.node_group.inputs if bpy.app.version < (4,0,0) else [item for item in modifier.node_group.interface.items_tree if item.item_type == 'SOCKET' and item.in_out == 'INPUT']
+	if len(sockets) >= 3:
+		modifier[keys[1]] = int(node.angleMode)
+		modifier[keys[2]] = node.angleLimitDistance
+	modifier.node_group.interface_update(context or bpy.context)
+	helperObj.scale = angleLimitConeScale(nodeObj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
+
+def coneHelpers(nodeObj):
+	return [frameChild for child in nodeObj.children if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME"
+			for frameChild in child.children if frameChild.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER"]
 
 def fixAngleLimitFrame(nodeObj,context = None):
 	"""Put the node's frame on its parent bone (the node object copies the parent bone's rotation; the frame's
@@ -137,9 +148,7 @@ def fixAngleLimitFrame(nodeObj,context = None):
 					modifier = frameChild.modifiers["REChainGeometryNodes"]
 					isSubGroup = modifier.node_group != None and "SubGroup" in modifier.node_group.name
 					modifier.node_group = getConeGeoNodeTree(isSubGroup = isSubGroup)
-					modifier["Input_0" if bpy.app.version < (4,0,0) else "Socket_0"] = nodeObj.re_chain_chainnode.angleLimitRad
-					modifier.node_group.interface_update(context or bpy.context)
-					frameChild.scale = angleLimitConeScale(nodeObj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
+					setConeInputs(nodeObj,frameChild,context)
 
 def update_coneSize(self, context):
 	for obj in bpy.data.objects:
@@ -158,11 +167,8 @@ def update_AngleLimitMode(self, context):
 	#Get child frame, then get the angle limt cone from frame
 	if type(obj).__name__ == "Object":#Check if it's an object to prevent issues with clipboard 
 		if obj.get("TYPE",None) == "RE_CHAIN_NODE":
-			for child in obj.children:
-				if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME":
-					for frameChild in child.children:
-						if frameChild.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER":					
-							frameChild.scale = angleLimitConeScale(obj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)
+			for frameChild in coneHelpers(obj):
+				setConeInputs(obj,frameChild,context)
 							
 def update_AngleLimitRad(self, context):
 	obj = self.id_data
@@ -174,14 +180,7 @@ def update_AngleLimitRad(self, context):
 					for frameChild in child.children:
 						if frameChild.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER":
 							
-							if "REChainGeometryNodes" in frameChild.modifiers:
-								modifier = frameChild.modifiers["REChainGeometryNodes"]
-								if bpy.app.version < (4,0,0):
-									modifier["Input_0"] = obj.re_chain_chainnode.angleLimitRad
-								else:
-									modifier["Socket_0"] = obj.re_chain_chainnode.angleLimitRad
-								modifier.node_group.interface_update(context)
-								frameChild.scale = angleLimitConeScale(obj,bpy.context.scene.re_chain_toolpanel.coneDisplaySize)#the shape depends on the angle
+							setConeInputs(obj,frameChild,context)
 								#print("Set modifier value")
 							#frameChild.data.spot_size = obj.re_chain_chainnode.angleLimitRad
 
@@ -2109,7 +2108,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		)
 	angleLimitDistance: FloatProperty(
 		name = "Angle Limit Distance",
-		description = "Used by Cone Box (the slab |z| <= this x length) and Oval (frame Z squeezed by this; 0 locks Z) only",#TODO Add description
+		description = "Used by Cone Box and Oval only. Cone Box: the swing's Z is capped at this x the segment length. Oval: the cone is flattened to this x its width (0 locks Z, 1 is round)",
 		default = 0.00,
 		update = update_AngleLimitMode
 		)

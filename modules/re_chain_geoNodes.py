@@ -942,21 +942,28 @@ def getLinkColGeoNodeTreeV2():
 def getConeGeoNodeTree(isSubGroup = False):
 	"""The angle limit cone as MH Wilds clamps it: the
 	input is the FULL opening angle, the swing is half of it; tip at the node, axis +X, length 10 before the helper's
-	scale. Over 90 degrees half angle the cone opens backwards."""
+	scale. Over 90 degrees half angle the cone opens backwards.
+
+	Angle Mode reshapes the lateral (Y, Z) part of each vertex p, with d the Angle Limit Distance:
+	- Cone Box (3): Z clamped to +-d x |p|, the slab the game cuts at d x the segment length;
+	- Oval (4): the cross-section of radius r becomes a stadium, flat sides at +-d x r and half circles of radius
+	  d x r ending at +-r along Y.
+	Hinge is flattened by the helper's scale."""
 	if isSubGroup:
-		TREENAME = "ChainConeSubGroupGeoNodeTreeV2"
+		TREENAME = "ChainConeSubGroupGeoNodeTreeV3"
 		mat = getConeSubGroupMat()
 	else:
-		TREENAME = "ChainConeGeoNodeTreeV2"
+		TREENAME = "ChainConeGeoNodeTreeV3"
 		mat = getConeMat()
 	if TREENAME not in bpy.data.node_groups:
 		node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
 		nodes = node_group.nodes
 		links = node_group.links
-		if bpy.app.version < (4,0,0):
-			node_group.inputs.new("NodeSocketFloat","AngleLimitRadius")
-		else:
-			node_group.interface.new_socket(name="AngleLimitRadius",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketFloat")
+		for name, socketType in (("AngleLimitRadius","NodeSocketFloat"),("AngleMode","NodeSocketInt"),("AngleLimitDistance","NodeSocketFloat")):
+			if bpy.app.version < (4,0,0):
+				node_group.inputs.new(socketType,name)
+			else:
+				node_group.interface.new_socket(name=name,description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type=socketType)
 		LENGTH = 10.0
 		inNode = nodes.new('NodeGroupInput')
 		inNode.location = (0,0)
@@ -1001,10 +1008,68 @@ def getConeGeoNodeTree(isSubGroup = False):
 		flipNode.location = (1400,0)
 		links.new(placeNode.outputs["Geometry"],flipNode.inputs["Geometry"])
 		links.new(flip.outputs["Vector"],flipNode.inputs["Scale"])
+		#Angle Mode shapes, per vertex (see the docstring)
+		def vmath(operation,a,b = None,scale = None):
+			node = nodes.new('ShaderNodeVectorMath')
+			node.operation = operation
+			for index,value in enumerate((a,b)):
+				if value is not None:
+					links.new(value,node.inputs[index])
+			if scale is not None:
+				links.new(scale,node.inputs["Scale"])
+			return node.outputs["Vector"] if operation not in ("LENGTH",) else node.outputs["Value"]
+		position = nodes.new('GeometryNodeInputPosition').outputs["Position"]
+		xyz = nodes.new('ShaderNodeSeparateXYZ')
+		links.new(position,xyz.inputs["Vector"])
+		d = math("MAXIMUM",inNode.outputs["AngleLimitDistance"],0.0)
+		#Cone Box: z clamped to +-d |p|
+		cap = math("MULTIPLY",d,vmath("LENGTH",position))
+		boxZ = math("MAXIMUM",math("MINIMUM",xyz.outputs["Z"],cap),math("MULTIPLY",cap,-1.0))
+		boxPos = nodes.new('ShaderNodeCombineXYZ')
+		links.new(xyz.outputs["X"],boxPos.inputs["X"])
+		links.new(xyz.outputs["Y"],boxPos.inputs["Y"])
+		links.new(boxZ,boxPos.inputs["Z"])
+		#Oval: q = (y, z) of radius r onto the stadium: c = (clamp(y, +-r (1 - d)), 0), q' = c + d r normalize(q - c)
+		lateral = nodes.new('ShaderNodeCombineXYZ')
+		links.new(xyz.outputs["Y"],lateral.inputs["Y"])
+		links.new(xyz.outputs["Z"],lateral.inputs["Z"])
+		r = vmath("LENGTH",lateral.outputs["Vector"])
+		reach = math("MULTIPLY",r,math("SUBTRACT",1.0,math("MINIMUM",d,1.0)))
+		centerY = math("MAXIMUM",math("MINIMUM",xyz.outputs["Y"],reach),math("MULTIPLY",reach,-1.0))
+		center = nodes.new('ShaderNodeCombineXYZ')
+		links.new(centerY,center.inputs["Y"])
+		direction = vmath("NORMALIZE",vmath("SUBTRACT",lateral.outputs["Vector"],center.outputs["Vector"]))
+		ovalLateral = vmath("ADD",center.outputs["Vector"],vmath("SCALE",direction,None,math("MULTIPLY",r,math("MINIMUM",d,1.0))))
+		ovalXYZ = nodes.new('ShaderNodeSeparateXYZ')
+		links.new(ovalLateral,ovalXYZ.inputs["Vector"])
+		ovalPos = nodes.new('ShaderNodeCombineXYZ')
+		links.new(xyz.outputs["X"],ovalPos.inputs["X"])
+		links.new(ovalXYZ.outputs["Y"],ovalPos.inputs["Y"])
+		links.new(ovalXYZ.outputs["Z"],ovalPos.inputs["Z"])
+		def isMode(value):
+			compare = nodes.new('FunctionNodeCompare')
+			compare.data_type = 'INT'
+			compare.operation = 'EQUAL'
+			links.new(inNode.outputs["AngleMode"],compare.inputs[2])
+			compare.inputs[3].default_value = value
+			return compare.outputs["Result"]
+		pickBox = nodes.new('GeometryNodeSwitch')
+		pickBox.input_type = 'VECTOR'
+		links.new(isMode(3),pickBox.inputs["Switch"])
+		links.new(position,pickBox.inputs["False"])
+		links.new(boxPos.outputs["Vector"],pickBox.inputs["True"])
+		pickOval = nodes.new('GeometryNodeSwitch')
+		pickOval.input_type = 'VECTOR'
+		links.new(isMode(4),pickOval.inputs["Switch"])
+		links.new(pickBox.outputs[0],pickOval.inputs["False"])
+		links.new(ovalPos.outputs["Vector"],pickOval.inputs["True"])
+		shapeNode = nodes.new('GeometryNodeSetPosition')
+		links.new(flipNode.outputs["Geometry"],shapeNode.inputs["Geometry"])
+		links.new(pickOval.outputs[0],shapeNode.inputs["Position"])
 		setMaterialNode = nodes.new('GeometryNodeSetMaterial')
 		setMaterialNode.location = (1600,0)
 		setMaterialNode.inputs["Material"].default_value = mat
-		links.new(flipNode.outputs["Geometry"],setMaterialNode.inputs["Geometry"])
+		links.new(shapeNode.outputs["Geometry"],setMaterialNode.inputs["Geometry"])
 		outNode = nodes.new('NodeGroupOutput')
 		outNode.location = (1800,0)
 		if bpy.app.version < (3,4,0):
