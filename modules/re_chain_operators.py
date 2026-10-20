@@ -21,7 +21,7 @@ class WM_OT_ChainFromBone(Operator):
 	bl_label = "Create Chain From Bone"
 	bl_idname = "re_chain.chain_from_bone"
 	bl_options = {'UNDO'}
-	bl_description = "Create new chain group and chain node objects starting from the selected bone and ending at the last child bone. Note that chains cannot be branching. Must be parented to a chain settings object"
+	bl_description = "Create new chain group and chain node objects starting from the selected bone and ending at the last child bone. With several bones selected, creates one chain from each selected bone that has no selected parent above it. Note that chains cannot be branching. Must be parented to a chain settings object"
 	def execute(self, context):
 		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
 		chainCollection = bpy.context.scene.re_chain_toolpanel.chainCollection
@@ -29,35 +29,34 @@ class WM_OT_ChainFromBone(Operator):
 		if chainCollection != None and headerObj != None:
 			experimentalFeatures = bpy.context.scene.re_chain_toolpanel.experimentalPoseModeOptions
 			selected = bpy.context.selected_pose_bones
-			chainList = []
 			
 			if experimentalFeatures:
 				if len(selected) >= 1:
-					chainList = selected
-					valid = True
+					chainLists = [selected]
 				else:
 					showErrorMessageBox("Must select pose bones to create a chain from selection.")
 					return {'CANCELLED'}
 			else:
-				if len(selected) == 1:
-					startBone = selected[0]
-					
+				if len(selected) == 0:
+					showErrorMessageBox("Select the chain start bone.")
+					return {'CANCELLED'}
+				#Each selected bone with no selected ancestor starts a chain; selected bones further down that chain are covered by it
+				selectedSet = set(selected)
+				startBoneList = [bone for bone in selected if not any(parent in selectedSet for parent in bone.parent_recursive)]
+				chainLists = []
+				for startBone in startBoneList:
 					chainList = startBone.children_recursive
 					chainList.insert(0,startBone)
-					#print(chainList)
-				else:
-					showErrorMessageBox("Select only the chain start bone.")
-					return {'CANCELLED'}
-				valid = True
-				
-				for bone in chainList:
-					if len(bone.children) > 1:
-						valid = False
+					for bone in chainList:
+						if len(bone.children) > 1:
+							if len(startBoneList) > 1:
+								showErrorMessageBox(f"Cannot have branching bones in a chain. The chain from {startBone.name} branches at {bone.name}, no chains were created.")
+							else:
+								showErrorMessageBox("Cannot have branching bones in a chain.")
+							return {'CANCELLED'}
+					chainLists.append(chainList)
 			
-			if not valid:
-				showErrorMessageBox("Cannot have branching bones in a chain.")
-				return {'CANCELLED'}
-			else:
+			for chainList in chainLists:
 				#chainEntryCollection = getCollection(f"Chain Entries - {chainCollection.name}",chainCollection,makeNew = False)
 				chainEntryCollection = chainCollection
 				currentChainGroupIndex = 0
@@ -222,7 +221,10 @@ class WM_OT_ChainFromBone(Operator):
 				lightObj.hide_viewport = bpy.context.scene.re_chain_toolpanel.hideLastNodeAngleLimit
 				alignChainGroups([chainGroupObj])
 				setChainBoneColor(armature)
-			self.report({"INFO"},"Created chain group from bone.")
+			if len(chainLists) > 1:
+				self.report({"INFO"},f"Created {len(chainLists)} chain groups from bones.")
+			else:
+				self.report({"INFO"},"Created chain group from bone.")
 		else:
 			self.report({"ERROR"},"No chain group was created because the active chain collection is not set.")
 		return {'FINISHED'}

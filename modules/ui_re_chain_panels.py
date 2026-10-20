@@ -118,7 +118,10 @@ class OBJECT_PT_ChainPoseModePanel(Panel):
 		row.prop(re_chain_toolpanel, "chainSetting")
 		row.operator("re_chain.create_chain_settings",icon='ADD', text="")
 		
-		layout.operator("re_chain.chain_from_bone",text=re_chain_toolpanel.chainFromBoneLabelName)
+		chainFromBoneText = re_chain_toolpanel.chainFromBoneLabelName
+		if not re_chain_toolpanel.experimentalPoseModeOptions and len(context.selected_pose_bones or []) > 1:
+			chainFromBoneText = "Batch Create Chains From Bones"
+		layout.operator("re_chain.chain_from_bone",text=chainFromBoneText)
 		layout.label(text="Collision Tools")
 		layout.prop(re_chain_toolpanel, "collisionShape")
 		layout.operator("re_chain.collision_from_bone")
