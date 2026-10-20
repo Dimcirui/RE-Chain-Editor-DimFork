@@ -247,8 +247,15 @@ def syncCollisionOffsets():
 					collisionObj.re_chain_chaincollision.collisionOffset = child.location# * .01
 				elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
 					collisionObj.re_chain_chaincollision.endCollisionOffset = child.location# * .01
-def alignChains():
-	for chain in [obj for obj in bpy.context.scene.objects if obj.get("TYPE",None) =="RE_CHAIN_CHAINGROUP"]:
+def alignChains(chainGroups = None):
+	#Other add-ons swap alignChains for a stub that takes no arguments, so code in this add-on that passes chain groups calls alignChainGroups
+	if chainGroups is None:
+		chainGroups = [obj for obj in bpy.context.scene.objects if obj.get("TYPE",None) =="RE_CHAIN_CHAINGROUP"]
+	alignChainGroups(chainGroups)
+def alignChainGroups(chainGroups):
+	#Index k of every chain's node list, parents always at a lower index than their children
+	inverseLevels = []
+	for chain in chainGroups:
 		if len(chain.children) > 0:
 			currentNode = chain.children[0]
 			nodeObjList = [currentNode]
@@ -266,18 +273,23 @@ def alignChains():
 						currentNode = child
 				if not hasNodeChild:#Avoid infinite loop in the case of a chain group consisting of a single node that contains a jiggle node
 					break
-			nodeObjList.reverse()
-			for recurse in nodeObjList:
-				if recurse.re_chain_chainnode.collisionRadius != 0:
-					recurse.empty_display_size = recurse.re_chain_chainnode.collisionRadius# * 100
+			for index,obj in enumerate(nodeObjList):
+				if obj.re_chain_chainnode.collisionRadius != 0:
+					obj.empty_display_size = obj.re_chain_chainnode.collisionRadius# * 100
 				else:
-					recurse.empty_display_size = .01
-				for obj in nodeObjList:
-					try:
-						obj.constraints["BoneName"].inverse_matrix = obj.parent.matrix_world.inverted()
-					except:
-						pass
-				bpy.context.view_layer.update()
+					obj.empty_display_size = .01
+				#Only a Child Of BoneName has an inverse; nodes use Copy Location
+				constraint = obj.constraints.get("BoneName")
+				if constraint is not None and hasattr(constraint,"inverse_matrix") and obj.parent is not None:
+					while len(inverseLevels) <= index:
+						inverseLevels.append([])
+					inverseLevels[index].append(obj)
+	#A node's inverse reads its parent's matrix_world, which is only current after the parent's own inverse is evaluated
+	for level in inverseLevels:
+		bpy.context.view_layer.update()
+		for obj in level:
+			obj.constraints["BoneName"].inverse_matrix = obj.parent.matrix_world.inverted()
+	bpy.context.view_layer.update()
 
 def alignCollisions():#TODO Fix matrices
 	collisionTypeList = [
@@ -798,7 +810,7 @@ def importChainFile(filepath,options,isChain2 = False):
 					constraint.name = "BoneName"
 				#frame.hide_viewport = bpy.context.scene.re_chain_toolpanel.hideLastNodeAngleLimit
 				lightObj.hide_viewport = bpy.context.scene.re_chain_toolpanel.hideLastNodeAngleLimit
-		alignChains()
+	alignChainGroups([obj for obj in chainCollection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP"])
 	#CHAIN COLLISION IMPORT
 	if len(chainFile.ChainCollisionList) > 0:
 		collisionCollection = getCollection(f"Chain Collisions - {chainCollection.name}",chainCollection,makeNew = not mergedChain)

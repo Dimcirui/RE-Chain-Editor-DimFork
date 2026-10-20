@@ -6,7 +6,7 @@ from mathutils import Matrix,Vector,Quaternion
 
 from bpy.types import Operator
 
-from .blender_re_chain import createEmpty,createCurve,alignChains,alignCollisions,checkNameUsage,checkChainSettingsIDUsage,checkWindSettingsIDUsage,findHeaderObj,syncCollisionOffsets,createChainCollection,getCollection,createCurveEmpty,createFakeEmptySphere,lockObjTransforms,setChainBoneColor
+from .blender_re_chain import createEmpty,createCurve,alignChains,alignChainGroups,alignCollisions,checkNameUsage,checkChainSettingsIDUsage,checkWindSettingsIDUsage,findHeaderObj,syncCollisionOffsets,createChainCollection,getCollection,createCurveEmpty,createFakeEmptySphere,lockObjTransforms,setChainBoneColor
 from .file_re_chain import ChainHeaderData,ChainSettingsData,WindSettingsData,ChainGroupData,ChainNodeData,ChainJiggleData,ChainCollisionData,ChainLinkData,ChainLinkNode
 from .file_re_chain2 import Chain2HeaderData,Chain2SettingsData,Chain2WindSettingsData,Chain2GroupData,Chain2NodeData,Chain2JiggleData,Chain2CollisionData,Chain2LinkData,Chain2LinkNode
 from .re_chain_propertyGroups import angleLimitConeScale,getChainHeader,getWindSettings,getChainSettings,getChainGroup,getChainNode,getChainJiggle,getChainLink,getChainCollision,getChainLinkCollisionNode
@@ -220,7 +220,7 @@ class WM_OT_ChainFromBone(Operator):
 				lightObj["isLastNode"] = 1
 				#frame.hide_viewport = bpy.context.scene.re_chain_toolpanel.hideLastNodeAngleLimit
 				lightObj.hide_viewport = bpy.context.scene.re_chain_toolpanel.hideLastNodeAngleLimit
-				alignChains()
+				alignChainGroups([chainGroupObj])
 				setChainBoneColor(armature)
 			self.report({"INFO"},"Created chain group from bone.")
 		else:
