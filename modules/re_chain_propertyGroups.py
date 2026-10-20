@@ -1427,6 +1427,25 @@ def getSpringCalcTypes(self, context):
 	stored = self.get("springCalcType",0) if self is not None else 0
 	return SPRING_CALC_TYPES[:2] + ([SPRING_CALC_TYPES[stored]] if stored in (2,3) else [])
 
+ANGLE_MODES = [("0", "AngleMode_Free", "Any Direction", 0),
+	("1", "AngleMode_LimitCone", "Limit Node Direction to Cone", 1),
+	("2", "AngleMode_LimitHinge", "Swings in the frame's X-Y plane only (turns about Z)", 2),
+	("3", "AngleMode_LimitConeBox", "The cone cut by the slab |z| <= Angle Limit Distance x length", 3),
+	("4", "AngleMode_LimitOval", "Frame Z squeezed by Angle Limit Distance (0 locks Z)", 4),
+	("5", "AngleMode_LimitElliptic", "Runs the round cone, the same as Limit Cone", 5)]
+
+def getAngleModes(self, context):
+	#chain2 (MH Wilds, Onimusha) files never use Elliptic, and the game clamps it as a round cone
+	try:
+		isChain2 = bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2"
+	except Exception:
+		isChain2 = False
+	if not isChain2:
+		return ANGLE_MODES
+	#Keep an Elliptic a chain2 file came with (read raw, so this callback is not asked again)
+	stored = self.get("angleMode",1) if self is not None else 1
+	return ANGLE_MODES[:5] + ([ANGLE_MODES[5]] if stored == 5 else [])
+
 class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 
 	fileWindID: IntProperty(
@@ -2168,15 +2187,9 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 	angleMode: EnumProperty(
 		name="Angle Mode",
 		description="Apply Data to attribute.",
-		items=[ ("0", "AngleMode_Free", "Any Direction"),
-				("1", "AngleMode_LimitCone", "Limit Node Direction to Cone"),
-				("2", "AngleMode_LimitHinge", "Swings in the frame's X-Y plane only (turns about Z)"),
-				("3", "AngleMode_LimitConeBox", "The cone cut by the slab |z| <= Angle Limit Distance x length"),
-				("4", "AngleMode_LimitOval", "Frame Z squeezed by Angle Limit Distance (0 locks Z)"),
-				("5", "AngleMode_LimitElliptic", "Runs the round cone, the same as Limit Cone"),
-			   ],
+		items=getAngleModes,
 		update = update_AngleLimitMode,
-		default = "1",
+		default = 1,
 		)
 		
 	collisionShape: EnumProperty(
@@ -2237,7 +2250,9 @@ def getChainNode(ChainNodeData,targetObject,isChain2 = False):
 	targetObject.re_chain_chainnode.capsuleStretchRate1 = ChainNodeData.capsuleStretchRate1
 	targetObject.re_chain_chainnode.attrFlags = ChainNodeData.attrFlags
 	targetObject.re_chain_chainnode.windCoef = ChainNodeData.windCoef
-	targetObject.re_chain_chainnode.angleMode = str(ChainNodeData.angleMode)
+	if ChainNodeData.angleMode in (0,1,2,3,4,5):
+		#Stored raw: chain2 lists no Elliptic, but one from the file is kept
+		targetObject.re_chain_chainnode["angleMode"] = ChainNodeData.angleMode
 	targetObject.re_chain_chainnode.collisionShape = str(ChainNodeData.collisionShape)
 	targetObject.re_chain_chainnode.attachType = ChainNodeData.attachType
 	targetObject.re_chain_chainnode.rotationType = ChainNodeData.rotationType
