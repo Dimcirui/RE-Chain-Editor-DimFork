@@ -18,6 +18,24 @@ def tag_redraw(context, space_type="PROPERTIES", region_type="WINDOW"):
 						region.tag_redraw()
 
 
+
+def greyed(layout,active):
+	"""A column drawn greyed out (still editable) when active is False: the field does nothing as things are set."""
+	column = layout.column()
+	column.active = bool(active)
+	return column
+
+def isChain2Collision(obj):
+	"""The collision is in a chain2 chain collection, not a clsp one."""
+	types = {collection.get("~TYPE",None) for collection in bpy.data.collections if obj.name in collection.all_objects}
+	return bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2" and "RE_CHAIN_COLLECTION" in types and "RE_CLSP_COLLECTION" not in types
+
+def chainGroupOfNode(nodeObj):
+	obj = nodeObj.parent
+	while obj != None and obj.get("TYPE",None) != "RE_CHAIN_CHAINGROUP":
+		obj = obj.parent
+	return obj
+
 class OBJECT_PT_ChainObjectModePanel(Panel):
 	bl_label = "RE Chain: Object Mode Tools"
 	bl_idname = "OBJECT_PT_chain_object_mode_panel"
@@ -225,8 +243,9 @@ class OBJECT_PT_ChainHeaderPanel(Panel):
 		if not isChain2:
 			col2.prop(re_chain_header, "legacyVersion")
 		else:
-			col2.prop(re_chain_header, "highFPSCalculateMode")
-			col2.prop(re_chain_header, "restartIterationsAlt")
+			#Greyed: Restart Damping Hold off / Chain Attribute Flags without Alternative Restart Iterations
+			greyed(col2,re_chain_header.wilds_unkn2 == 1).prop(re_chain_header, "highFPSCalculateMode")
+			greyed(col2,re_chain_header.chainAttrFlags & 0x2).prop(re_chain_header, "restartIterationsAlt")
 			col2.prop(re_chain_header, "freeLinkJoint")
 			col2.prop(re_chain_header, "taperedCollideMethod")
 			col2.prop(re_chain_header, "wilds_unkn1",text=propLabel(re_chain_header,"wilds_unkn1"))
@@ -371,21 +390,24 @@ class OBJECT_PT_ChainSettingsPanel(Panel):
 		#if version >= 24:
 		col2.prop(re_chain_chainsettings, "minDamping",slider=True)
 		col2.prop(re_chain_chainsettings, "dampingPow")
-		col2.prop(re_chain_chainsettings, "secondDamping",slider=True)
+		#MH Wilds: each speed (or force) leads its group; at exactly 0 the rest of the group does nothing and is greyed
+		secondDampingOn = not isChain2 or re_chain_chainsettings.secondDampingSpeed != 0.0
+		col2.prop(re_chain_chainsettings, "secondDampingSpeed")
+		greyed(col2,secondDampingOn).prop(re_chain_chainsettings, "secondDamping",slider=True)
 		#if version >= 24:
-		col2.prop(re_chain_chainsettings, "secondMinDamping",slider=True)
-		col2.prop(re_chain_chainsettings, "secondDampingSpeed")	
-		#if version >= 24:	
-		col2.prop(re_chain_chainsettings, "secondDampingPow")
+		greyed(col2,secondDampingOn).prop(re_chain_chainsettings, "secondMinDamping",slider=True)
+		#if version >= 24:
+		greyed(col2,secondDampingOn).prop(re_chain_chainsettings, "secondDampingPow")
 		col2.prop(re_chain_chainsettings, "collideMaxVelocity")
-		col2.prop(re_chain_chainsettings, "springCalcType")
+		springOn = not isChain2 or re_chain_chainsettings.springForce != 0.0
 		col2.prop(re_chain_chainsettings, "springForce")
-		col2.prop(re_chain_chainsettings, "springLimitRate")
-		col2.prop(re_chain_chainsettings, "springMaxVelocity")
-		
+		greyed(col2,springOn).prop(re_chain_chainsettings, "springCalcType")
+		greyed(col2,springOn).prop(re_chain_chainsettings, "springLimitRate")
+		greyed(col2,springOn).prop(re_chain_chainsettings, "springMaxVelocity")
+
 		col2.prop(re_chain_chainsettings, "reduceSelfDistanceRate",slider=True)
-		col2.prop(re_chain_chainsettings, "secondReduceDistanceRate",slider=True)
 		col2.prop(re_chain_chainsettings, "secondReduceDistanceSpeed")
+		greyed(col2,not isChain2 or re_chain_chainsettings.secondReduceDistanceSpeed != 0.0).prop(re_chain_chainsettings, "secondReduceDistanceRate",slider=True)
 		col2.prop(re_chain_chainsettings, "friction",slider=True)
 		col2.prop(re_chain_chainsettings, "shockAbsorptionRate",slider=True)
 		col2.prop(re_chain_chainsettings, "coefOfElasticity",slider=True)
@@ -401,12 +423,23 @@ class OBJECT_PT_ChainSettingsPanel(Panel):
 			col2.prop(re_chain_chainsettings, "motionForceCalcType")
 			col2.prop(re_chain_chainsettings, "elasticLimit")
 		row = col2.row()
+		if isChain2:
+			#Greyed when nothing reads it; the line under it says what does
+			from .re_chain_propertyGroups import groupDefaultAttrUses
+			groups, links = groupDefaultAttrUses(object)
+			row.active = bool(groups or links)
 		row.prop(re_chain_chainsettings, "groupDefaultAttr")
 		row.operator("re_chain.set_attr_flags",icon='DOWNARROW_HLT', text="")
+		if isChain2:
+			uses = ([f"{groups} group(s) with Collision from Setting"] if groups else []) + (["the link collisions"] if links else [])
+			note = col2.row()
+			note.alignment = 'RIGHT'
+			note.label(text=("Read by " + " and ".join(uses)) if uses else "Not read: no group with Collision from Setting uses this setting, and it is not the links' setting")
 		col2.prop(re_chain_chainsettings, "windDelayType")
+		#Greyed: only Wind Delay Type Manual reads it
+		greyed(col2,not isChain2 or re_chain_chainsettings.windDelayType == "2").prop(re_chain_chainsettings, "windDelaySpeed")
 		col2.prop(re_chain_chainsettings, "windEffectCoef",slider=True)
 		col2.prop(re_chain_chainsettings, "envWindEffectCoef",slider=True)
-		col2.prop(re_chain_chainsettings, "windDelaySpeed")
 		col2.prop(re_chain_chainsettings, "velocityLimit")
 		col2.prop(re_chain_chainsettings, "hardness",slider=True)
 class OBJECT_PT_ChainSettingsSubDataPanel(Panel):
@@ -470,7 +503,9 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 		
 		col2.prop(re_chain_chaingroup, "rotationOrder")
 		if object.get("windIDFromFile",False) or object.parent == None or object.parent.parent == None or object.parent.parent.get("TYPE",None) != "RE_CHAIN_WINDSETTINGS":
-			col2.prop(re_chain_chaingroup, "fileWindID")
+			#Greyed: Wind from Setting takes the setting's wind ID
+			isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+			greyed(col2,not (isChain2 and re_chain_chaingroup.attrFlags & 0x400)).prop(re_chain_chaingroup, "fileWindID")
 		row = col2.row()
 		row.prop(re_chain_chaingroup, "attrFlags")
 		row.operator("re_chain.set_attr_flags",icon='DOWNARROW_HLT', text="")
@@ -556,19 +591,27 @@ class OBJECT_PT_ChainNodePanel(Panel):
 		col2 = split.column()
 		col2.alignment='RIGHT'
 		col2.use_property_split = True
-		col2.prop(re_chain_chainnode, "angleLimitRad")
-		col2.prop(re_chain_chainnode, "angleLimitDistance") 
-		col2.prop(re_chain_chainnode, "angleLimitRestitution")
-		col2.prop(re_chain_chainnode, "angleLimitRestituteStopSpeed")
+		#MH Wilds: greyed when the group's switches or the node's modes keep a field from doing anything
+		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+		group = chainGroupOfNode(object)
+		groupAttr = group.re_chain_chaingroup.attrFlags if group != None else 0x2
+		mode = re_chain_chainnode.angleMode
+		angleOn = not isChain2 or (groupAttr & 0x2 and not groupAttr & 0x2000 and mode != "0")
+		greyed(col2,angleOn).prop(re_chain_chainnode, "angleLimitRad")
+		greyed(col2,angleOn and (not isChain2 or mode in ("3","4"))).prop(re_chain_chainnode, "angleLimitDistance")
+		bounceOn = angleOn and (not isChain2 or (mode == "2" and groupAttr & 0x1000))
+		greyed(col2,bounceOn).prop(re_chain_chainnode, "angleLimitRestitution")
+		greyed(col2,bounceOn).prop(re_chain_chainnode, "angleLimitRestituteStopSpeed")
 		col2.prop(re_chain_chainnode, "collisionRadius")
 		col2.prop(re_chain_chainnode, "collisionFilterFlags")
-		col2.prop(re_chain_chainnode, "capsuleStretchRate0",slider = True)
-		col2.prop(re_chain_chainnode, "capsuleStretchRate1",slider = True)
+		capsuleOn = not isChain2 or re_chain_chainnode.collisionShape == "2"
+		greyed(col2,capsuleOn).prop(re_chain_chainnode, "capsuleStretchRate0",slider = True)
+		greyed(col2,capsuleOn).prop(re_chain_chainnode, "capsuleStretchRate1",slider = True)
 		row = col2.row()
 		row.prop(re_chain_chainnode, "attrFlags")
 		row.operator("re_chain.set_node_attr_flags",icon='DOWNARROW_HLT', text="")
 		col2.prop(re_chain_chainnode, "windCoef",slider = True)
-		col2.prop(re_chain_chainnode, "angleMode")
+		greyed(col2,not isChain2 or (groupAttr & 0x2 and not groupAttr & 0x2000)).prop(re_chain_chainnode, "angleMode")
 		col2.prop(re_chain_chainnode, "collisionShape")
 		col2.prop(re_chain_chainnode, "attachType")
 		col2.prop(re_chain_chainnode, "rotationType")
@@ -654,8 +697,14 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 		col2.prop(re_chain_chaincollision, "collisionFilterFlags")
 		#col2.prop(re_chain_chaincollision, "subDataFlag")
 		
-		col2.prop(re_chain_chaincollision, "clspBitFlag0")
-		col2.prop(re_chain_chaincollision, "clspBitFlag1")
+		#A chain2 collision record has no CLSP mask: these are written only by the clsp export
+		inChain2 = isChain2Collision(object)
+		greyed(col2,not inChain2).prop(re_chain_chaincollision, "clspBitFlag0")
+		greyed(col2,not inChain2).prop(re_chain_chaincollision, "clspBitFlag1")
+		if inChain2:
+			note = col2.row()
+			note.alignment = 'RIGHT'
+			note.label(text="CLSP Flags only available on clsp")
 		
 class OBJECT_PT_ChainCollisionSubDataPanel(Panel):
 	bl_label = "RE Chain Collision Subdata Settings"
@@ -717,27 +766,35 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		col2.use_property_split = True
 		col2.prop_search(re_chain_chainlink, "chainGroupAObject",bpy.context.scene,"objects")
 		col2.prop_search(re_chain_chainlink, "chainGroupBObject",bpy.context.scene,"objects")
-		col2.prop(re_chain_chainlink, "distanceShrinkLimitCoef")
-		col2.prop(re_chain_chainlink, "distanceExpandLimitCoef") 
+		#Greyed: Link Mode Off builds no link; the coefficients need Stretch Range in Link Attribute Flags
+		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+		linkOn = not isChain2 or re_chain_chainlink.linkMode in ("0","1")
+		stretchOn = not isChain2 or (linkOn and re_chain_chainlink.linkAttrFlags & 0x1)
+		greyed(col2,stretchOn).prop(re_chain_chainlink, "distanceShrinkLimitCoef")
+		greyed(col2,stretchOn).prop(re_chain_chainlink, "distanceExpandLimitCoef")
 		row = col2.split(factor=0.4)
 		row.alignment = 'RIGHT'
 		row.label(text="Link Mode")
 		buttons = row.row(align=True)
 		for value,name,legacy in LINK_MODE_NAMES:
 			buttons.prop_enum(re_chain_chainlink,"linkMode",value,text=pickName(name,legacy))
-		row = col2.row()
+		from .re_chain_propertyGroups import linkCollisionNodePairs,linkCollisionObjects,linkCollisionSetting,LINK_COLLISION_FLAGS
+		linkCol = greyed(col2,linkOn)
+		row = linkCol.row()
 		row.prop(re_chain_chainlink, "connectFlagBits")
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink.connectFlagBits"
-		row = col2.row()
+		row = linkCol.row()
 		row.prop(re_chain_chainlink, "linkAttrFlags")
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink.linkAttrFlags"
-		col2.prop(re_chain_chainlink, "skipGroupA")
-		col2.prop(re_chain_chainlink, "skipGroupB")
-		col2.prop(re_chain_chainlink, "linkOrder")
+		linkCol.prop(re_chain_chainlink, "skipGroupA")
+		linkCol.prop(re_chain_chainlink, "skipGroupB")
+		linkCol.prop(re_chain_chainlink, "linkOrder")
 		if bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2":
-			col2.prop(re_chain_chainlink, "clspFlags0")
-			col2.prop(re_chain_chainlink, "clspFlags1")
-		from .re_chain_propertyGroups import linkCollisionNodePairs,linkCollisionObjects,linkCollisionSetting,LINK_COLLISION_FLAGS
+			#Greyed: the setting's Scene Colliders switch is off, so the CLSP mask is not used
+			header, setting = linkCollisionSetting(object)
+			sceneOn = setting == None or setting.re_chain_chainsettings.groupDefaultAttr & 0x10000
+			greyed(linkCol,sceneOn).prop(re_chain_chainlink, "clspFlags0")
+			greyed(linkCol,sceneOn).prop(re_chain_chainlink, "clspFlags1")
 		box = layout.box()
 		from .re_chain_names import flagLabel
 		box.label(text="As MH Wilds builds this link (read only):")

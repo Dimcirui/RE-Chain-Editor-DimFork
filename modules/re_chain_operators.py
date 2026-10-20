@@ -1814,6 +1814,10 @@ class chain2GroupAttrFlags(AndFlags):
 			}
 
 #Chain Group
+#The group's own collision switches: ignored when Collision from Setting is on, and the only part of a setting's
+#Group Default Attribute that is used
+GROUP_COLLISION_FLAGS = ("CollisionSelf","CollisionModel","CollisionVGround","CollisionCollider","CollisionGroup","CollisionCharacter")
+
 class WM_OT_SetAttrFlags(Operator):
 	bl_label = "Set Attribute Flag"
 	bl_description = "Set chain group attribute flags"
@@ -1908,28 +1912,26 @@ class WM_OT_SetAttrFlags(Operator):
 		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
 		layout.label(text="Type: chain2" if isChain2 else "Type: chain")
 		layout.label(text="Older chain versions may not support all options.",icon = "ERROR")
-		layout.prop(self,"RootRotation",text=flagLabel("RootRotation"))
-		layout.prop(self,"AngleLimit",text=flagLabel("AngleLimit"))
-		layout.prop(self,"ExtraNode",text=flagLabel("ExtraNode"))
-		layout.prop(self,"CollisionDefault",text=flagLabel("CollisionDefault"))
-		layout.prop(self,"CollisionSelf",text=flagLabel("CollisionSelf"))
-		layout.prop(self,"CollisionModel",text=flagLabel("CollisionModel"))
-		layout.prop(self,"CollisionVGround",text=flagLabel("CollisionVGround"))
-		layout.prop(self,"CollisionCollider",text=flagLabel("CollisionCollider"))
-		layout.prop(self,"CollisionGroup",text=flagLabel("CollisionGroup"))
-		layout.prop(self,"CollisionCharacter",text=flagLabel("CollisionCharacter"))
-		layout.prop(self,"EnablePartBlend",text=flagLabel("EnablePartBlend"))
-		layout.prop(self,"WindDefault",text=flagLabel("WindDefault"))
-		layout.prop(self,"EnableEnvWind",text=flagLabel("EnableEnvWind"))
-		layout.prop(self,"TransAnimation",text=flagLabel("TransAnimation"))
-		layout.prop(self,"AngleLimitRestitution",text=flagLabel("AngleLimitRestitution"))
-		layout.prop(self,"StretchBoth",text=flagLabel("StretchBoth"))
-		if isChain2:
-			layout.prop(self,"StretchBothAutoScale",text=flagLabel("StretchBothAutoScale"))
-		layout.prop(self,"EndRotConstraint",text=flagLabel("EndRotConstraint"))
-		layout.prop(self,"ScaleAnimation",text=flagLabel("ScaleAnimation"))
-		if isChain2:
-			layout.prop(self,"UseBitFlag",text=flagLabel("UseBitFlag"))
+		isSetting = context.active_object is not None and context.active_object.get("TYPE") == "RE_CHAIN_CHAINSETTINGS"
+		keys = ["RootRotation","AngleLimit","ExtraNode","CollisionDefault"] + list(GROUP_COLLISION_FLAGS) + ["EnablePartBlend","WindDefault","EnableEnvWind","TransAnimation","AngleLimitRestitution","StretchBoth"]
+		keys += (["StretchBothAutoScale"] if isChain2 else []) + ["EndRotConstraint","ScaleAnimation"] + (["UseBitFlag"] if isChain2 else [])
+		if isChain2 and isSetting:
+			#MH Wilds reads only the collision switches of a setting's Group Default Attribute; the other bits stay as they are
+			layout.label(text="A setting's Group Default Attribute: only its collision switches are read",icon = "INFO")
+			keys = list(GROUP_COLLISION_FLAGS)
+		for key in keys:
+			row = layout.row()
+			#MH Wilds: greyed when another switch keeps the flag from doing anything
+			if isChain2:
+				if isSetting:
+					row.active = key in GROUP_COLLISION_FLAGS
+				elif key in GROUP_COLLISION_FLAGS:
+					row.active = not self.CollisionDefault
+				elif key == "AngleLimit":
+					row.active = not self.StretchBoth
+				elif key == "AngleLimitRestitution":
+					row.active = self.AngleLimit and not self.StretchBoth
+			row.prop(self,key,text=flagLabel(key))
 		
 	@classmethod
 	def poll(self,context):

@@ -413,6 +413,29 @@ def retargetLinkCollisions(chainLinkObj,context = None):
 		modifier[keys[2]] = colObj.re_chain_chainlink_collision.collisionRadius
 	nodeGroup.interface_update(context or bpy.context)
 
+def groupDefaultAttrUses(settingObj):
+	"""What reads this setting's Group Default Attribute in MH Wilds: the groups with Collision from Setting that use
+	the setting (its child groups, or groups without a setting when it is the Default one), and the link collisions
+	when it is the setting the header's Default Setting Index picks. Returns (group count, used by the links)."""
+	for collection in bpy.data.collections:
+		if settingObj.name in collection.all_objects:
+			objects = collection.all_objects
+			isDefault = settingObj.re_chain_chainsettings.settingsAttrFlags & 0x1
+			groups = 0
+			for obj in objects:
+				if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP" and obj.re_chain_chaingroup.attrFlags & 0x8:
+					parentSetting = obj.parent if obj.parent != None and obj.parent.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS" else None
+					if parentSetting == settingObj or (parentSetting == None and isDefault):
+						groups += 1
+			links = False
+			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
+			if headers and any(obj.get("TYPE",None) == "RE_CHAIN_LINK" for obj in objects):
+				settings = sorted([obj for obj in objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"],key = lambda item: item.name)
+				index = headers[0].re_chain_header.defaultSettingIdx
+				links = 0 <= index < len(settings) and settings[index] == settingObj
+			return groups, links
+	return 0, False
+
 def linkCollisionSetting(chainLinkObj):
 	"""The chain setting whose Group Default Attribute switches link collision on: MH Wilds takes the setting the
 	header's Default Setting Index picks, in export order (by name)."""
@@ -1426,10 +1449,10 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	windDelayType: EnumProperty(
 		name="Wind Delay Type",
-		description="Version 24 and above",
-		items=[ ("0", "WindDelayType_None", ""),
-				("1", "WindDelayType_Auto", ""),
-				("2", "WindDelayType_Manual", ""),
+		description="How the stage (environment) wind travels along the chain, for groups with Environment Wind ticked.\nVersion 24 and above",
+		items=[ ("0", "WindDelayType_None", "No delay: every node feels the same gust at the same moment"),
+				("1", "WindDelayType_Auto", "The gust travels at the current stage wind's speed"),
+				("2", "WindDelayType_Manual", "The gust travels at Wind Delay Speed"),
 			  ],
 		default = "1",
 		)
@@ -1528,7 +1551,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	windDelaySpeed: FloatProperty(
 		name = "Wind Delay Speed",
-		description = "Capcom Example Values RE4: [0.0]\nVersion 48 and above only",#TODO Add description
+		description = "How fast the stage wind's gust travels along the chain; used only with Wind Delay Type Manual. 0 is no delay.\nCapcom Example Values RE4: [0.0]\nVersion 48 and above only",
 		default = 0.00,
 		)
 	envWindEffectCoef: FloatProperty(
@@ -1544,12 +1567,18 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 	
 	windDelayType: EnumProperty(
 		name="Wind Delay Type",
-		description="Version 24 and above",
-		items=[ ("0", "WindDelayType_None", ""),
-				("1", "WindDelayType_Auto", ""),
-				("2", "WindDelayType_Manual", ""),
+		description="How the stage (environment) wind travels along the chain, for groups with Environment Wind ticked.\nVersion 24 and above",
+		items=[ ("0", "WindDelayType_None", "No delay: every node feels the same gust at the same moment"),
+				("1", "WindDelayType_Auto", "The gust travels at the current stage wind's speed"),
+				("2", "WindDelayType_Manual", "The gust travels at Wind Delay Speed"),
 			  ],
 		default = "1",
+		)
+	motionForceCalcTypeTail: IntProperty(
+		name = "Motion Force Calculation Type Tail",
+		description = "The 3 bytes after Motion Force Calculation Type, kept as the file had them",
+		default = 0,
+		options = {'HIDDEN'},
 		)
 	elasticLimit: FloatProperty(
 		name = "Elastic Limit",
@@ -1558,7 +1587,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	motionForceCalcType: EnumProperty(
 		name="Motion Force Calculation Type (chain2)",
-		description="*This value might not be motion force calc type\nVersion 9 and above",
+		description="How the motion force is worked out: Motion Force, or Init Shape Force, which takes another path each substep and on a pose reset. What Init Shape Force does exactly is not known\nVersion 9 and above",
 		items=[ ("0", "MotionForceCalcType_MotionForce", ""),
 				("1", "MotionForceCalcType_InitShapeForce", ""),
 			  ]
@@ -1596,6 +1625,7 @@ def getChainSettings(ChainSettingsData,targetObject,isChain2 = False):
 	else:
 		targetObject.re_chain_chainsettings.motionForceCalcType = str(ChainSettingsData.motionForceCalcType)
 		targetObject.re_chain_chainsettings.elasticLimit = getattr(ChainSettingsData,"elasticLimit",0.0)
+		targetObject.re_chain_chainsettings.motionForceCalcTypeTail = getattr(ChainSettingsData,"padding",0) & 0xFFFFFF
 		targetObject.re_chain_chainsettings.unknQuaternion = (ChainSettingsData.subDataUnkn0,ChainSettingsData.subDataUnkn1,ChainSettingsData.subDataUnkn2,ChainSettingsData.subDataUnkn3)
 		targetObject.re_chain_chainsettings.unknPos = (ChainSettingsData.subDataUnkn4,ChainSettingsData.subDataUnkn5,ChainSettingsData.subDataUnkn6)
 		for subData in ChainSettingsData.subDataList:
@@ -1656,6 +1686,7 @@ def setChainSettingsData(ChainSettingsData,targetObject,isChain2 = False):
 	else:
 		ChainSettingsData.motionForceCalcType = int(targetObject.re_chain_chainsettings.motionForceCalcType)
 		ChainSettingsData.elasticLimit = targetObject.re_chain_chainsettings.elasticLimit
+		ChainSettingsData.padding = targetObject.re_chain_chainsettings.motionForceCalcTypeTail
 		ChainSettingsData.subDataUnkn0 = targetObject.re_chain_chainsettings.unknQuaternion[0]
 		ChainSettingsData.subDataUnkn1 = targetObject.re_chain_chainsettings.unknQuaternion[1]
 		ChainSettingsData.subDataUnkn2 = targetObject.re_chain_chainsettings.unknQuaternion[2]
