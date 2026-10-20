@@ -350,7 +350,8 @@ def update_ChainGroupB(self, context):
 				
 			obj.name = f"LINK_{str(linkIndex).zfill(2)} - {shortNameA} > {shortNameB}"
 			
-LINK_COLLISION_FLAGS = ((0x10000, "scene colliders (CLSP)"), (0x20, "the chain's own collisions"), (0x80, "the physics world"))
+#The Group Default Attribute switches the link collisions read: (bit, attribute flag name in re_chain_names.FLAG_NAMES)
+LINK_COLLISION_FLAGS = ((0x10000, "CollisionCharacter"), (0x20, "CollisionModel"), (0x80, "CollisionCollider"))
 
 def chainGroupNodeList(groupObj):
 	"""A chain group's node objects from the root, as the link code walks them."""
