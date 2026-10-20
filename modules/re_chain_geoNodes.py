@@ -583,8 +583,8 @@ def getChainLinkGeoNodeTree():
 
 def getLinkColGeoNodeTree():
 	"""MH Wilds' link collision: a sphere midway between the pair's nodes, of the link node's radius (times the
-	chain's scale), and a thin line between the nodes."""
-	TREENAME = "ChainLinkColGeoNodeTreeV4"
+	chain's scale), and a thin dashed line between the nodes."""
+	TREENAME = "ChainLinkColGeoNodeTreeV5"
 	if TREENAME not in bpy.data.node_groups:
 		node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
 		nodes = node_group.nodes
@@ -627,12 +627,58 @@ def getLinkColGeoNodeTree():
 		curveLineNode.location = (600,-300)
 		links.new(startObjInfoNode.outputs["Location"],curveLineNode.inputs["Start"])
 		links.new(endObjInfoNode.outputs["Location"],curveLineNode.inputs["End"])
+		#The pair line, dashed: display only, the game has no line.
+		#2k+1 equal segments of about DASH each (k = floor(length / (2 DASH))), every other one kept, so both ends are dashes
+		DASH = 0.004
+		distanceNode = nodes.new('ShaderNodeVectorMath')
+		distanceNode.location = (600,-450)
+		distanceNode.operation = "DISTANCE"
+		links.new(startObjInfoNode.outputs["Location"],distanceNode.inputs[0])
+		links.new(endObjInfoNode.outputs["Location"],distanceNode.inputs[1])
+		dashCountNode = nodes.new('ShaderNodeMath')
+		dashCountNode.location = (800,-450)
+		dashCountNode.operation = "DIVIDE"
+		links.new(distanceNode.outputs["Value"],dashCountNode.inputs[0])
+		dashCountNode.inputs[1].default_value = 2.0 * DASH
+		dashFloorNode = nodes.new('ShaderNodeMath')
+		dashFloorNode.location = (1000,-450)
+		dashFloorNode.operation = "FLOOR"
+		links.new(dashCountNode.outputs["Value"],dashFloorNode.inputs[0])
+		pointCountNode = nodes.new('ShaderNodeMath')
+		pointCountNode.location = (1200,-450)
+		pointCountNode.operation = "MULTIPLY_ADD"
+		links.new(dashFloorNode.outputs["Value"],pointCountNode.inputs[0])
+		pointCountNode.inputs[1].default_value = 2.0
+		pointCountNode.inputs[2].default_value = 2.0
+		resampleNode = nodes.new('GeometryNodeResampleCurve')
+		resampleNode.location = (800,-300)
+		links.new(curveLineNode.outputs["Curve"],resampleNode.inputs["Curve"])
+		links.new(pointCountNode.outputs["Value"],resampleNode.inputs["Count"])
+		polylineNode = nodes.new('GeometryNodeCurveToMesh')
+		polylineNode.location = (1000,-300)
+		links.new(resampleNode.outputs["Curve"],polylineNode.inputs["Curve"])
+		indexNode = nodes.new('GeometryNodeInputIndex')
+		indexNode.location = (1000,-600)
+		gapNode = nodes.new('ShaderNodeMath')
+		gapNode.location = (1200,-600)
+		gapNode.operation = "FLOORED_MODULO"
+		links.new(indexNode.outputs["Index"],gapNode.inputs[0])
+		gapNode.inputs[1].default_value = 2.0
+		deleteGapsNode = nodes.new('GeometryNodeDeleteGeometry')
+		deleteGapsNode.location = (1200,-300)
+		deleteGapsNode.domain = "EDGE"
+		links.new(polylineNode.outputs["Mesh"],deleteGapsNode.inputs["Geometry"])
+		links.new(gapNode.outputs["Value"],deleteGapsNode.inputs["Selection"])
+		dashCurveNode = nodes.new('GeometryNodeMeshToCurve')
+		dashCurveNode.location = (1400,-300)
+		links.new(deleteGapsNode.outputs["Geometry"],dashCurveNode.inputs["Mesh"])
 		curveCircleNode = nodes.new('GeometryNodeCurvePrimitiveCircle')
-		curveCircleNode.location = (600,-500)
-		curveCircleNode.inputs["Radius"].default_value = 0.0005#the pair line: display only, the game has no line
+		curveCircleNode.location = (1400,-500)
+		curveCircleNode.inputs["Resolution"].default_value = 8
+		curveCircleNode.inputs["Radius"].default_value = 0.0005
 		curveToMeshNode = nodes.new('GeometryNodeCurveToMesh')
-		curveToMeshNode.location = (1000,-300)
-		links.new(curveLineNode.outputs["Curve"],curveToMeshNode.inputs["Curve"])
+		curveToMeshNode.location = (1600,-300)
+		links.new(dashCurveNode.outputs["Curve"],curveToMeshNode.inputs["Curve"])
 		links.new(curveCircleNode.outputs["Curve"],curveToMeshNode.inputs["Profile Curve"])
 		joinGeometryNode = nodes.new('GeometryNodeJoinGeometry')
 		joinGeometryNode.location = (1200,0)
