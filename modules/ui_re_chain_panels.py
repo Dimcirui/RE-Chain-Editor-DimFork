@@ -7,6 +7,7 @@ from bpy.types import (Panel,
 					   )
 
 from .file_re_chain import version
+from .re_chain_names import propLabel,pickName,LINK_MODE_NAMES
 
 def tag_redraw(context, space_type="PROPERTIES", region_type="WINDOW"):
 	for window in context.window_manager.windows:
@@ -228,8 +229,8 @@ class OBJECT_PT_ChainHeaderPanel(Panel):
 			col2.prop(re_chain_header, "restartIterationsAlt")
 			col2.prop(re_chain_header, "freeLinkJoint")
 			col2.prop(re_chain_header, "taperedCollideMethod")
-			col2.prop(re_chain_header, "wilds_unkn1")
-			col2.prop(re_chain_header, "wilds_unkn2")
+			col2.prop(re_chain_header, "wilds_unkn1",text=propLabel(re_chain_header,"wilds_unkn1"))
+			col2.prop(re_chain_header, "wilds_unkn2",text=propLabel(re_chain_header,"wilds_unkn2"))
 		row = col2.row()
 		row.prop(re_chain_header, "collisionFilterHitBits0")
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.collisionFilterHitBits0"
@@ -718,7 +719,12 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		col2.prop_search(re_chain_chainlink, "chainGroupBObject",bpy.context.scene,"objects")
 		col2.prop(re_chain_chainlink, "distanceShrinkLimitCoef")
 		col2.prop(re_chain_chainlink, "distanceExpandLimitCoef") 
-		col2.prop(re_chain_chainlink, "linkMode")
+		row = col2.split(factor=0.4)
+		row.alignment = 'RIGHT'
+		row.label(text="Link Mode")
+		buttons = row.row(align=True)
+		for value,name,legacy in LINK_MODE_NAMES:
+			buttons.prop_enum(re_chain_chainlink,"linkMode",value,text=pickName(name,legacy))
 		row = col2.row()
 		row.prop(re_chain_chainlink, "connectFlagBits")
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink.connectFlagBits"
@@ -751,7 +757,7 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 				attr = setting.re_chain_chainsettings.groupDefaultAttr
 				box.label(text=f"Link collision switched by {setting.name} (Default Setting Index {header.re_chain_header.defaultSettingIdx}), Group Default Attribute {attr}:")
 				for bit,label in LINK_COLLISION_FLAGS:
-					box.label(text=f"{'on ' if attr & bit else 'off'}  {hex(bit)}: against {label}", icon="CHECKBOX_HLT" if attr & bit else "CHECKBOX_DEHLT")
+					box.label(text=f"{'on ' if attr & bit else 'off'}  against {label}", icon="CHECKBOX_HLT" if attr & bit else "CHECKBOX_DEHLT")
 
 class OBJECT_PT_ChainLinkCollisionPanel(Panel):
 	bl_label = "RE Chain Link Collision Settings"

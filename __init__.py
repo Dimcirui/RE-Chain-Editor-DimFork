@@ -60,6 +60,11 @@ class REChainPreferences(AddonPreferences):
 	    min=0,
 	    max=23
 	)
+	legacyNames: bpy.props.BoolProperty(
+		name = "Original RE Chain Editor names",
+		description = "Show the attribute flags and fields under the names the original RE Chain Editor gave them, instead of the game's names or names that say what they do. Names that pointed at a different field than the one the file holds are not brought back",
+		default = False,
+	)
 	updater_interval_minutes: bpy.props.IntProperty(
 	    name='Minutes',
 	    description = "Number of minutes between checking for updates",
@@ -69,6 +74,7 @@ class REChainPreferences(AddonPreferences):
 	)
 	def draw(self, context):
 		layout = self.layout
+		layout.prop(self, "legacyNames")
 		split = layout.split(factor = .3)
 		col1 = split.column()
 		col2 = split.column()

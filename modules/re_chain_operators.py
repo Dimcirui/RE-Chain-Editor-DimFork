@@ -11,6 +11,7 @@ from .file_re_chain import ChainHeaderData,ChainSettingsData,WindSettingsData,Ch
 from .file_re_chain2 import Chain2HeaderData,Chain2SettingsData,Chain2WindSettingsData,Chain2GroupData,Chain2NodeData,Chain2JiggleData,Chain2CollisionData,Chain2LinkData,Chain2LinkNode
 from .re_chain_propertyGroups import angleLimitConeScale,getChainHeader,getWindSettings,getChainSettings,getChainGroup,getChainNode,getChainJiggle,getChainLink,getChainCollision,getChainLinkCollisionNode
 from .ui_re_chain_panels import tag_redraw
+from .re_chain_names import FLAG_NAMES,flagLabel,pickName,BIT_FLAG_NAMES
 from .blender_utils import showErrorMessageBox,outlinerShowObject
 from .re_chain_presets import saveAsPreset,readPresetJSON
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree,getChainLinkGeoNodeTree,getConeGeoNodeTree,getLinkColGeoNodeTree,getChainGroupMat
@@ -1821,85 +1822,85 @@ class WM_OT_SetAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	#TODO Add which chain versions can use each flag
 	RootRotation : bpy.props.BoolProperty(
-		name="Root Rotation",
-		description="",
+		name="Free Root Rotation",
+		description="The root node may turn instead of keeping its bone's rotation",
 		default = False)
 	AngleLimit : bpy.props.BoolProperty(
-		name="Angle Limit",
-		description="0x2: the angle limits",
+		name="Enabled Angle Limit",
+		description="Applies the nodes' angle limits",
 		default = False)
 	ExtraNode : bpy.props.BoolProperty(
 		name="Extra Tail Node",
-		description="0x20000: an extra node after the tip (the last runtime node gets no joint). The extra ROOT node is node attribute 0x2",
+		description="Adds an extra node after the tip; the last node then has no bone. The extra root node is the node attribute Extra Root Node",
 		default = False)
 	CollisionDefault : bpy.props.BoolProperty(
-		name="Collision Default",
-		description="0x8: the collision passes come from the setting's Group Default Attribute; the group's own pass bits (Self ... Group, Character) are then ignored",
+		name="Collision from Setting",
+		description="Takes the collision switches from the setting's Group Default Attribute; this group's own collision switches are then ignored",
 		default = False)
 	CollisionSelf : bpy.props.BoolProperty(
-		name="Collision Self",
-		description="0x10: self collision pass",
+		name="Self Collision",
+		description="The group's nodes collide with each other",
 		default = False)
 	CollisionModel : bpy.props.BoolProperty(
-		name="Collision Model",
-		description="0x20: the chain's own (model) collisions pass",
+		name="Chain Collisions",
+		description="Collides with the chain's own collision shapes",
 		default = False)
 	CollisionVGround : bpy.props.BoolProperty(
-		name="Collision VGround",
-		description="0x40: virtual ground pass",
+		name="Virtual Ground",
+		description="Collides with the virtual ground",
 		default = False)
 	CollisionCollider : bpy.props.BoolProperty(
-		name="Collision Environment (Collider)",
-		description="0x80: the physics world's triangles pass",
+		name="Environment Collision",
+		description="Collides with the physics world's triangles (the stage)",
 		default = False)
 	CollisionGroup : bpy.props.BoolProperty(
 		name="Collision Group",
-		description="0x100: group pass",
+		description="A collision pass whose use is not known",
 		default = False)
 	EnablePartBlend : bpy.props.BoolProperty(
 		name="Enable Part Blend",
-		description="0x200: no reader found in MH Wilds",
+		description="Nothing in MH Wilds is known to read it",
 		default = False)
 	WindDefault : bpy.props.BoolProperty(
-		name="Wind Default",
-		description="0x400: the wind ID comes from the setting",
+		name="Wind from Setting",
+		description="Takes the wind ID from the setting instead of the group",
 		default = False)
 	TransAnimation : bpy.props.BoolProperty(
-		name="Trans Animation",
-		description="0x800: segment lengths from the pose",
+		name="Lengths from Pose",
+		description="Segment lengths follow the animated pose",
 		default = False)
 	AngleLimitRestitution : bpy.props.BoolProperty(
-		name="Angle Limit Restitution",
-		description="0x1000: the angle limit bounce (Restitution / Stop Speed); Hinge only",
+		name="Angle Limit Bounce",
+		description="Bounces off the angle limit, by the node's Restitution and Stop Speed. Hinge only",
 		default = False)
 	StretchBoth : bpy.props.BoolProperty(
 		name="Stretch Both",
-		description="0x2000",
+		description="While it is on, the angle limits are skipped. Its other effects are not traced",
 		default = False)
 	EndRotConstraint : bpy.props.BoolProperty(
 		name="End Rot Constraint",
-		description="0x4000",
+		description="The last node keeps its own rotation at output, with the twist of the extra tail node",
 		default = False)
 	EnableEnvWind : bpy.props.BoolProperty(
-		name="Enable Env Wind",
-		description="0x8000: the stage (environment) wind, scaled by Env Wind Effect Coefficient",
+		name="Environment Wind",
+		description="Feels the stage (environment) wind, scaled by the setting's Env Wind Effect Coefficient",
 		default = False)
 	ScaleAnimation : bpy.props.BoolProperty(
-		name="Scale Animation",
-		description="0x4: scale from the joint",
+		name="Enabled Scale Animation",
+		description="Takes the scale from the first bone's parent",
 		default = False)
 	CollisionCharacter : bpy.props.BoolProperty(
-		name="Collision Scene Colliders (Character)",
-		description="0x10000: the scene colliders (CLSP) pass",
+		name="Scene Colliders (CLSP)",
+		description="Collides with the scene colliders (CLSP)",
 		default = False)
 	#chain2
 	UseBitFlag : bpy.props.BoolProperty(
 		name="Use Bit Flag",
-		description="0x40000: no reader found in MH Wilds",
+		description="Nothing in MH Wilds is known to read it",
 		default = False)
 	StretchBothAutoScale : bpy.props.BoolProperty(
 		name="Stretch Both Auto Scale",
-		description="0x80000",
+		description="Its effect is not traced",
 		default = False)
 	
 	def draw(self,context):
@@ -1907,28 +1908,28 @@ class WM_OT_SetAttrFlags(Operator):
 		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
 		layout.label(text="Type: chain2" if isChain2 else "Type: chain")
 		layout.label(text="Older chain versions may not support all options.",icon = "ERROR")
-		layout.prop(self,"RootRotation")
-		layout.prop(self,"AngleLimit")
-		layout.prop(self,"ExtraNode")
-		layout.prop(self,"CollisionDefault")
-		layout.prop(self,"CollisionSelf")
-		layout.prop(self,"CollisionModel")
-		layout.prop(self,"CollisionVGround")
-		layout.prop(self,"CollisionCollider")
-		layout.prop(self,"CollisionGroup")
-		layout.prop(self,"CollisionCharacter")
-		layout.prop(self,"EnablePartBlend")
-		layout.prop(self,"WindDefault")
-		layout.prop(self,"EnableEnvWind")
-		layout.prop(self,"TransAnimation")
-		layout.prop(self,"AngleLimitRestitution")
-		layout.prop(self,"StretchBoth")
+		layout.prop(self,"RootRotation",text=flagLabel("RootRotation"))
+		layout.prop(self,"AngleLimit",text=flagLabel("AngleLimit"))
+		layout.prop(self,"ExtraNode",text=flagLabel("ExtraNode"))
+		layout.prop(self,"CollisionDefault",text=flagLabel("CollisionDefault"))
+		layout.prop(self,"CollisionSelf",text=flagLabel("CollisionSelf"))
+		layout.prop(self,"CollisionModel",text=flagLabel("CollisionModel"))
+		layout.prop(self,"CollisionVGround",text=flagLabel("CollisionVGround"))
+		layout.prop(self,"CollisionCollider",text=flagLabel("CollisionCollider"))
+		layout.prop(self,"CollisionGroup",text=flagLabel("CollisionGroup"))
+		layout.prop(self,"CollisionCharacter",text=flagLabel("CollisionCharacter"))
+		layout.prop(self,"EnablePartBlend",text=flagLabel("EnablePartBlend"))
+		layout.prop(self,"WindDefault",text=flagLabel("WindDefault"))
+		layout.prop(self,"EnableEnvWind",text=flagLabel("EnableEnvWind"))
+		layout.prop(self,"TransAnimation",text=flagLabel("TransAnimation"))
+		layout.prop(self,"AngleLimitRestitution",text=flagLabel("AngleLimitRestitution"))
+		layout.prop(self,"StretchBoth",text=flagLabel("StretchBoth"))
 		if isChain2:
-			layout.prop(self,"StretchBothAutoScale")
-		layout.prop(self,"EndRotConstraint")
-		layout.prop(self,"ScaleAnimation")
+			layout.prop(self,"StretchBothAutoScale",text=flagLabel("StretchBothAutoScale"))
+		layout.prop(self,"EndRotConstraint",text=flagLabel("EndRotConstraint"))
+		layout.prop(self,"ScaleAnimation",text=flagLabel("ScaleAnimation"))
 		if isChain2:
-			layout.prop(self,"UseBitFlag")
+			layout.prop(self,"UseBitFlag",text=flagLabel("UseBitFlag"))
 		
 	@classmethod
 	def poll(self,context):
@@ -1982,19 +1983,11 @@ class WM_OT_SetAttrFlags(Operator):
 		return context.window_manager.invoke_props_dialog(self)
 	
 
-# The bit flag fields edited by re_chain.set_bit_flags: "property group.field" -> (object TYPE, [(bit, label)])
-BIT_FLAG_FIELDS = {
-	"re_chain_chainlink.connectFlagBits": ("RE_CHAIN_LINK", [(0x1, "Straight A[j] - B[j] (Neighbour)"), (0x2, "Diagonal A[j] - B[j+1] (Upper): pulls only, no collision"), (0x4, "Diagonal A[j+1] - B[j] (Bottom): pulls only, no collision")]),
-	"re_chain_chainlink.linkAttrFlags": ("RE_CHAIN_LINK", [(0x1, "Stretch range (EnableStretch)")]),
-	"re_chain_header.errFlagBits": ("RE_CHAIN_HEADER", [(0x1, "Empty"), (0x2, "Not Found Ref Asset"), (0x4, "Not Found Include Asset")]),
-	"re_chain_header.chainAttrFlags": ("RE_CHAIN_HEADER", [(0x1, "Model Collision Preset"), (0x2, "Use the alternative restart iteration count"), (0x4, "Wind gate of that restart")]),
-	"re_chain_header.parameterFlag": ("RE_CHAIN_HEADER", [(0x1, "Reflect Environmental")]),
-}
-for _i in range(8):
-	BIT_FLAG_FIELDS[f"re_chain_header.collisionFilterHitBits{_i}"] = ("RE_CHAIN_HEADER", [(1, '0x1 (unknown)'), (2, 'Self'), (4, 'Model'), (8, 'Collider'), (16, 'Angle'), (32, 'Group'), (64, 'VGround'), (128, '0x80 (unknown)')])
+# The bit flag fields edited by re_chain.set_bit_flags: "property group.field" -> (object TYPE, [(bit, name, original name)])
+BIT_FLAG_FIELDS = {target: ("RE_CHAIN_LINK" if target.startswith("re_chain_chainlink.") else "RE_CHAIN_HEADER", bits) for target, bits in BIT_FLAG_NAMES.items()}
 
 def _bitFlagProps():
-	return {f"bit{i}": bpy.props.BoolProperty(name=f"0x{1 << i:X}", default=False) for i in range(32)}
+	return {f"bit{i}": bpy.props.BoolProperty(name=f"Bit {i}", default=False) for i in range(32)}
 
 class WM_OT_SetBitFlags(Operator):
 	bl_label = "Set Flags"
@@ -2016,12 +2009,12 @@ class WM_OT_SetBitFlags(Operator):
 		layout = self.layout
 		groupName, propName, (objType, bits) = self._field()
 		known = 0
-		for bit, label in bits:
-			layout.prop(self, f"bit{bit.bit_length() - 1}", text=f"{label}")
+		for bit, name, legacy in bits:
+			layout.prop(self, f"bit{bit.bit_length() - 1}", text=pickName(name,legacy))
 			known |= bit
 		for i in range(32):
 			if self.shown & (1 << i) and not known & (1 << i):
-				layout.prop(self, f"bit{i}", text=f"0x{1 << i:X} (unknown)")
+				layout.prop(self, f"bit{i}", text=f"Unknown {1 << i}")
 
 	def invoke(self,context,event):
 		if self.target not in BIT_FLAG_FIELDS:
@@ -2038,7 +2031,7 @@ class WM_OT_SetBitFlags(Operator):
 			return {'CANCELLED'}
 		groupName, propName, (objType, bits) = self._field()
 		listed = self.shown
-		for bit, label in bits:
+		for bit, name, legacy in bits:
 			listed |= bit
 		value = sum(1 << i for i in range(31) if listed & (1 << i) and getattr(self, f"bit{i}"))
 		#Apply to the active object and the selected objects of its type
@@ -2067,17 +2060,17 @@ class WM_OT_SetNodeAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	PartMotionBlend : bpy.props.BoolProperty(
 		name="Part Motion Blend",
-		description="0x1: not known in MH Wilds",
+		description="Its use in MH Wilds is not known",
 		default = False)
 	Jiggle : bpy.props.BoolProperty(
 		name="Extra Root Node",
-		description="0x2 on the group's first node: a pinned extra root node is added and node 0 is freed (shown as Jiggle before)",
+		description="On the group's first node: the game adds a pinned extra root node before it and frees this node",
 		default = False)
 	
 	def draw(self,context):
 		layout = self.layout
-		layout.prop(self,"PartMotionBlend")
-		layout.prop(self,"Jiggle")
+		layout.prop(self,"PartMotionBlend",text=flagLabel("PartMotionBlend"))
+		layout.prop(self,"Jiggle",text=flagLabel("Jiggle"))
 		
 	@classmethod
 	def poll(self,context):
@@ -2139,23 +2132,23 @@ class WM_OT_SetSettingAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	Default : bpy.props.BoolProperty(
 		name="Default",
-		description="0x1: groups whose setting ID matches no setting fall back to this one",
+		description="Groups whose setting ID matches no setting fall back to this one",
 		default = False)
 	VirtualGroundRoot : bpy.props.BoolProperty(
 		name="Virtual Ground Root",
-		description="0x2: the low bit of the 2-bit Virtual Ground Type",
+		description="Together with Virtual Ground Target, the setting's Virtual Ground Type (None, Root or Target), not a separate switch",
 		default = False)
 	VirtualGroundTarget : bpy.props.BoolProperty(
 		name="Virtual Ground Target",
-		description="0x4: the high bit of the 2-bit Virtual Ground Type",
+		description="Together with Virtual Ground Root, the setting's Virtual Ground Type (None, Root or Target), not a separate switch",
 		default = False)
 	IgnoreSameGroupCollision : bpy.props.BoolProperty(
 		name="Ignore Same Setting Group Collision",
-		description="0x8: groups of the same setting do not collide with each other",
+		description="Groups of the same setting do not collide with each other",
 		default = False)
 	UseReduceDistanceCurve : bpy.props.BoolProperty(
 		name="Use Reduce Distance Curve",
-		description="0x10: follow the owner by the speed curve",
+		description="Follows the owner by the speed curve",
 		default = False)
 	"""
 	VirtualGroundMask : bpy.props.BoolProperty(
@@ -2166,12 +2159,12 @@ class WM_OT_SetSettingAttrFlags(Operator):
 	def draw(self,context):
 		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
 		layout = self.layout
-		layout.prop(self,"Default")
-		layout.prop(self,"VirtualGroundRoot")
-		layout.prop(self,"VirtualGroundTarget")
-		layout.prop(self,"IgnoreSameGroupCollision")
+		layout.prop(self,"Default",text=flagLabel("Default"))
+		layout.prop(self,"VirtualGroundRoot",text=flagLabel("VirtualGroundRoot"))
+		layout.prop(self,"VirtualGroundTarget",text=flagLabel("VirtualGroundTarget"))
+		layout.prop(self,"IgnoreSameGroupCollision",text=flagLabel("IgnoreSameGroupCollision"))
 		if isChain2:
-			layout.prop(self,"UseReduceDistanceCurve")
+			layout.prop(self,"UseReduceDistanceCurve",text=flagLabel("UseReduceDistanceCurve"))
 			#layout.prop(self,"VirtualGroundMask")
 		
 		
@@ -2230,12 +2223,12 @@ class WM_OT_SetJiggleAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	OverrideDamping : bpy.props.BoolProperty(
 		name="Override Damping",
-		description="",
+		description="Its use in MH Wilds is not known",
 		default = False)
 	
 	def draw(self,context):
 		layout = self.layout
-		layout.prop(self,"OverrideDamping")
+		layout.prop(self,"OverrideDamping",text=flagLabel("OverrideDamping"))
 		
 	@classmethod
 	def poll(self,context):
