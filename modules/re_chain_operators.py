@@ -1882,19 +1882,19 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	CollisionSelf : bpy.props.BoolProperty(
 		name="Self Collision",
-		description="The group's nodes collide with each other",
+		description="The group's nodes collide with each other: Sphere nodes two or more apart, with a radius and overlapping Collision Filter Flags",
 		default = False)
 	CollisionModel : bpy.props.BoolProperty(
 		name="Chain Collisions",
-		description="Collides with the chain's own collision shapes",
+		description="Collides with the collision shapes in this chain file (not CLSP), when the prefab's Collision Target is Self or All",
 		default = False)
 	CollisionVGround : bpy.props.BoolProperty(
 		name="Virtual Ground",
-		description="Collides with the virtual ground",
+		description="Collides with the virtual ground. The game turns it off in some motions",
 		default = False)
 	CollisionCollider : bpy.props.BoolProperty(
 		name="Environment Collision",
-		description="Collides with the physics world's triangles (the stage)",
+		description="Collides with the stage's physics geometry; props without collision are not part of it",
 		default = False)
 	CollisionGroup : bpy.props.BoolProperty(
 		name="Collision Group",
@@ -1934,7 +1934,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	CollisionCharacter : bpy.props.BoolProperty(
 		name="Scene Colliders (CLSP)",
-		description="Collides with the scene colliders (CLSP)",
+		description="Collides with CLSP shapes whose mask meets the group's CLSP Flags A / B, when the prefab's Collision Target is Extern or All",
 		default = False)
 	#chain2
 	UseBitFlag : bpy.props.BoolProperty(
