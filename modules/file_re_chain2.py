@@ -6,7 +6,7 @@ from .gen_functions import textColors,raiseWarning,raiseError,getPaddingAmount,g
 VERSION_DD2 = 4
 VERSION_DR = 9
 VERSION_MHWILDS = 12#Beta
-#Chain setting subdata present on every vanilla MH Wilds chain2 setting
+#The chain setting subdata MH Wilds chain2 settings carry
 MHWILDS_DEFAULT_SETTINGS_SUBDATA = ((0,1,0,0,0,0,0),(0,1,0,0,77,0,0))
 MHWILDS_VERSION_SET = set([14])#12 and 13 are no longer used by MH Wilds
 VERSION_MHS3 = 15
@@ -245,7 +245,7 @@ class Chain2SettingsData():
 		self.settingsAttrFlags = 0 #ENUM
 		self.springCalcType = 0
 		self.windID = 0
-		self.windDelayType = 1#Vanilla MH Wilds majority
+		self.windDelayType = 1#MH Wilds default
 		self.gravityX = 0.0
 		self.gravityY = -9.8
 		self.gravityZ = 0.0
@@ -281,10 +281,8 @@ class Chain2SettingsData():
 		self.motionForceCalcType = 0#Sometimes 1, Dead Rising npc57_Chain2
 		self.padding = 0
 		#MH Wilds: +176 is ElasticLimit (f32), +180 MotionForceCalcType (u8) and 3 bytes kept as they are
-		#(the runtime getters, vmovss / mov al)
 		self.elasticLimit = 0.0
 		#MH Wilds: +176 is ElasticLimit (f32), +180 MotionForceCalcType (u8) and 3 bytes kept as they are
-		#(the runtime getters, vmovss / mov al)
 		self.elasticLimit = 0.0
 		
 		#MH Wilds
@@ -789,7 +787,7 @@ class Chain2GroupData():
 		self.hierarchyHash3 = 0
 		self.dampingNoise0 = 0.0
 		self.dampingNoise1 = 0.0
-		self.endRotConstMax = 12.566370964050293#4pi, vanilla MH Wilds value
+		self.endRotConstMax = 12.566370964050293#4 pi, the MH Wilds default
 		self.tagCount = 0
 		self.angleLimitDirectionMode = 0
 		self.subGroupCount = 0

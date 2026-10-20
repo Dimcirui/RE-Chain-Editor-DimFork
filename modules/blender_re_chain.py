@@ -589,7 +589,7 @@ def importChainFile(filepath,options,isChain2 = False):
 			name = subName + "_" + str(terminateNodeName)
 		chainGroupObj = createCurve(name, [("TYPE","RE_CHAIN_CHAINGROUP")],chainGroupParent,chainEntryCollection)
 		getChainGroup(chainGroup,chainGroupObj,isChain2)
-		chainGroupObj["windIDFromFile"] = True#its own +0x0F, kept: the game reads it on groups without attribute 0x400
+		chainGroupObj["windIDFromFile"] = True#the group record's own wind ID; the game reads it on groups without Wind from Setting
 		endBone = findBone(terminateNodeName,armature)
 
 

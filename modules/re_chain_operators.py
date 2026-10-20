@@ -625,7 +625,7 @@ class WM_OT_NewChainLink(Operator):
 			
 			getChainLink(chainLink,chainLinkObj)
 			if isChain2 and groupAObj != None:
-				#Vanilla MH Wilds links mostly collide with the union of both groups' CLSP Flags A and nothing of B
+				#The usual MH Wilds link: the union of both groups' CLSP Flags A, and no CLSP Flags B
 				chainLinkObj.re_chain_chainlink.clspFlags0 = groupAObj.re_chain_chaingroup.clspFlags0 | groupBObj.re_chain_chaingroup.clspFlags0
 				chainLinkObj.re_chain_chainlink.clspFlags1 = 0
 

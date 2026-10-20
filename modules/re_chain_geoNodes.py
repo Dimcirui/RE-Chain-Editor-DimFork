@@ -704,7 +704,8 @@ def getLinkColGeoNodeTree():
 	return bpy.data.node_groups[TREENAME]
 
 def getLinkColGeoNodeTreeV2():
-	"""The drawing before the MH Wilds review (a tube 3.5 times the radius along the pair): kept for old files."""
+	"""The previous link collision drawing (a tube along the pair), kept for scenes that still use it; Redraw All
+	Chains replaces it."""
 	TREENAME = "ChainLinkColGeoNodeTreeV2"
 	
 	if TREENAME not in bpy.data.node_groups:
@@ -823,8 +824,7 @@ def getLinkColGeoNodeTreeV2():
 def getConeGeoNodeTree(isSubGroup = False):
 	"""The angle limit cone as MH Wilds clamps it: the
 	input is the FULL opening angle, the swing is half of it; tip at the node, axis +X, length 10 before the helper's
-	scale. Over 90 degrees half angle the cone opens backwards. (V1 used the angle as the base radius of a depth 2
-	cone: atan(angle / 2), so 180 degrees in the file drew +-57.5 instead of +-90.)"""
+	scale. Over 90 degrees half angle the cone opens backwards."""
 	if isSubGroup:
 		TREENAME = "ChainConeSubGroupGeoNodeTreeV2"
 		mat = getConeSubGroupMat()
@@ -900,7 +900,7 @@ def getConeGeoNodeTree(isSubGroup = False):
 	return bpy.data.node_groups[TREENAME]
 
 def getConeGeoNodeTreeV1(isSubGroup = False):
-	"""The drawing before the MH Wilds review, kept for old files."""
+	"""The previous angle limit cone, kept for scenes that still use it; Redraw All Chains replaces it."""
 	if isSubGroup:
 		TREENAME = "ChainConeSubGroupGeoNodeTreeV1"
 		mat = getConeSubGroupMat()

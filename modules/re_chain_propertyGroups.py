@@ -1980,7 +1980,7 @@ def setChainGroupData(ChainGroupData,targetObject,isChain2 = False):
 		ChainGroupData.interpCount = targetObject.re_chain_chaingroup.interpCount 
 		ChainGroupData.nodeInterpolationMode = int(targetObject.re_chain_chaingroup.nodeInterpolationMode)
 		
-	if targetObject.get("windIDFromFile",False):#imported: its own +0x0F (the game reads it on groups without attribute 0x400)
+	if targetObject.get("windIDFromFile",False):#imported: the group record's own wind ID (read by the game on groups without Wind from Setting)
 		ChainGroupData.windID = targetObject.re_chain_chaingroup.fileWindID
 	elif targetObject.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS":
 		ChainGroupData.windID = targetObject.parent.re_chain_windsettings.id

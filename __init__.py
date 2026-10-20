@@ -85,7 +85,7 @@ class REChainPreferences(AddonPreferences):
         icon='FUND'
         )
 		op.url = 'https://ko-fi.com/nsacloud'
-		#Updater off until the DimFork repository has releases (it pointed at the upstream repository)
+		#Updater off until the DimFork repository has releases
 		#addon_updater_ops.update_settings_ui(self,context)
 
 class ImportREChain(bpy.types.Operator, ImportHelper):

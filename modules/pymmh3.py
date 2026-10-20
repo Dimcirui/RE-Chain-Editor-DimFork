@@ -59,7 +59,5 @@ def hash(key, seed=0xffffffff):
 
 
 def hash_wide(key, seed=0xffffffff):
-    #RE Engine hashes the wide string: UTF-16LE. Appending a zero after each character and hashing that as
-    #UTF-8 matched only for ASCII, so bone names with other characters (Chinese, accents) got other hashes
-    #than the game's and RE Mesh Editor's
+    #RE Engine hashes joint names as UTF-16LE; names with non-ASCII characters depend on the real encoding
     return hash(key.encode('utf-16le'), seed)
