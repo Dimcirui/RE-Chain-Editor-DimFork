@@ -373,6 +373,7 @@ def update_ChainGroupA(self, context):
 							obj.modifiers["REChainGeometryNodes"]["Socket_0"] = nodeObj
 						obj.modifiers["REChainGeometryNodes"].node_group.interface_update(context)
 			obj.name = f"LINK_{str(linkIndex).zfill(2)} - {shortNameA} > {shortNameB}"
+			updateLinkDrawing(obj)
 def update_ChainGroupB(self, context):
 	obj = self.id_data
 	if type(obj).__name__ == "Object":#Check if it's an object to prevent issues with clipboard 
@@ -405,6 +406,7 @@ def update_ChainGroupB(self, context):
 				shortNameA = groupAObj.name.replace("CHAIN_GROUP_","")
 				
 			obj.name = f"LINK_{str(linkIndex).zfill(2)} - {shortNameA} > {shortNameB}"
+			updateLinkDrawing(obj)
 			
 #The Group Default Attribute switches the link collisions read: (bit, attribute flag name in re_chain_names.FLAG_NAMES)
 LINK_COLLISION_FLAGS = ((0x10000, "CollisionCharacter"), (0x20, "CollisionModel"), (0x80, "CollisionCollider"))
@@ -447,6 +449,53 @@ def linkCollisionNodePairs(chainLinkObj):
 			pairs.append((nodesA[ia],nodesB[ib]))
 	return pairs
 
+def linkNodePairs(chainLinkObj):
+	"""(node A, node B, diagonal) of every pair MH Wilds links. j runs over n pairs: as many as the shorter group
+	has after its skip, capped by the exported Node Count (the number of link collisions) when there are any.
+	Connection Flags 0x1 links A[j] - B[j]; 0x2 links A[j] - B[j+1] and 0x4 links A[j+1] - B[j], both counted the
+	same way as the straight pair (from the tip in Link Mode 1) and only for j below n - 1."""
+	link = chainLinkObj.re_chain_chainlink
+	if link.linkMode not in ("0","1"):
+		return []
+	nodesA = chainGroupNodeList(bpy.data.objects.get(link.chainGroupAObject))
+	nodesB = chainGroupNodeList(bpy.data.objects.get(link.chainGroupBObject))
+	na, nb = len(nodesA) - link.skipGroupA, len(nodesB) - link.skipGroupB
+	n = max(0,min(na,nb))
+	colCount = len(linkCollisionObjects(chainLinkObj))
+	if colCount:
+		n = min(n,colCount)
+	def index(j, offsetA, offsetB):
+		if link.linkMode == "1":
+			return na - 1 - j - offsetA, nb - 1 - j - offsetB
+		return link.skipGroupA + j + offsetA, link.skipGroupB + j + offsetB
+	flags = link.connectFlagBits
+	pairs = []
+	for j in range(n):
+		wanted = [((0,0),False)] if flags & 0x1 else []
+		if j < n - 1:
+			if flags & 0x2:
+				wanted.append(((0,1),True))
+			if flags & 0x4:
+				wanted.append(((1,0),True))
+		for (offsetA, offsetB), diagonal in wanted:
+			ia, ib = index(j, offsetA, offsetB)
+			if 0 <= ia < len(nodesA) and 0 <= ib < len(nodesB):
+				pairs.append((nodesA[ia],nodesB[ib],diagonal))
+	return pairs
+
+def updateLinkDrawing(chainLinkObj):
+	"""Draw every pair the link builds on the link object, in its own tree (named after the link)."""
+	from .re_chain_geoNodes import buildLinkPairsGeoNodeTree
+	modifier = chainLinkObj.modifiers.get("REChainGeometryNodes")
+	if modifier == None:
+		modifier = chainLinkObj.modifiers.new(name="REChainGeometryNodes",type='NODES')
+	tree = modifier.node_group
+	if tree == None or not tree.get("reChainLinkPairs") or tree.users > 1:
+		tree = bpy.data.node_groups.new(type="GeometryNodeTree",name="ChainLinkPairs - " + chainLinkObj.name)
+		tree["reChainLinkPairs"] = True
+		modifier.node_group = tree
+	buildLinkPairsGeoNodeTree(tree,linkNodePairs(chainLinkObj))
+
 def linkCollisionObjects(chainLinkObj):
 	return sorted([child for child in chainLinkObj.children if child.get("TYPE") == "RE_CHAIN_LINK_COLLISION"],key = lambda item: item.name)
 
@@ -468,6 +517,7 @@ def retargetLinkCollisions(chainLinkObj,context = None):
 		modifier[keys[1]] = objB
 		modifier[keys[2]] = colObj.re_chain_chainlink_collision.collisionRadius
 	nodeGroup.interface_update(context or bpy.context)
+	updateLinkDrawing(chainLinkObj)
 
 def groupDefaultAttrUses(settingObj):
 	"""What reads this setting's Group Default Attribute in MH Wilds: the groups with Collision from Setting that use
@@ -2644,6 +2694,7 @@ class chainLinkPropertyGroup(bpy.types.PropertyGroup):
 		default = 1,
 		min = 0,
 		max = 255,
+		update = update_LinkCollisionTargets
 		)
 	linkAttrFlags: IntProperty(
 		name="Link Attribute Flags",

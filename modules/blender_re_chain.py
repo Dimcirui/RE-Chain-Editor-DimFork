@@ -1052,9 +1052,13 @@ def importChainFile(filepath,options,isChain2 = False):
 	setChainBoneColor(armature)
 	from .re_chain_propertyGroups import updateNodeCapsule
 	#A list: drawing a capsule adds an object to the collection being walked
+	from .re_chain_propertyGroups import updateLinkDrawing
 	for obj in list(chainCollection.all_objects):
 		if obj.get("TYPE",None) == "RE_CHAIN_NODE" and obj.re_chain_chainnode.collisionShape == "2":
 			updateNodeCapsule(obj)
+		elif obj.get("TYPE",None) == "RE_CHAIN_LINK":
+			#Links are drawn once their settings and link collisions (the Node Count) are in
+			updateLinkDrawing(obj)
 	windSettingsObjList.clear()
 	chainSettingsObjList.clear()
 	return True

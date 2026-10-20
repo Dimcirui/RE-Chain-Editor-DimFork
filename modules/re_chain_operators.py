@@ -782,6 +782,8 @@ class WM_OT_CreateChainLinkCollision(Operator):
 						linkCollisionObj.re_chain_chainlink_collision.collisionRadius = linkCollision.collisionRadius
 						linkCollisionObj.re_chain_chainlink_collision.collisionFilterFlags = linkCollision.collisionFilterFlags
 						linkCollisionObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawLinkCollisionsThroughObjects
+					from .re_chain_propertyGroups import updateLinkDrawing
+					updateLinkDrawing(chainLinkObj)#the link collisions cap the pairs
 					self.report({"INFO"},"Created chain link collision.")
 				else:
 					self.report({"ERROR"},"The link builds no node pairs: set both chain groups, Link Mode 0 or 1, and skips the groups allow.")

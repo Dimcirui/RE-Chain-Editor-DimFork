@@ -583,125 +583,161 @@ def getChainLinkGeoNodeTree():
 
 def getLinkColGeoNodeTree():
 	"""MH Wilds' link collision: a sphere midway between the pair's nodes, of the link node's radius (times the
-	chain's scale), and a thin dashed line between the nodes."""
-	TREENAME = "ChainLinkColGeoNodeTreeV5"
-	if TREENAME not in bpy.data.node_groups:
-		node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
-		nodes = node_group.nodes
-		links = node_group.links
+	chain's scale). The pair itself is drawn by its link."""
+	TREENAME = "ChainLinkColGeoNodeTreeV6"
+	if TREENAME in bpy.data.node_groups:
+		return bpy.data.node_groups[TREENAME]
+	node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
+	nodes = node_group.nodes
+	links = node_group.links
+	for name, socketType in (("Start Object","NodeSocketObject"),("End Object","NodeSocketObject"),("Radius","NodeSocketFloat")):
 		if bpy.app.version < (4,0,0):
-			node_group.inputs.new("NodeSocketObject","Start Object")
-			node_group.inputs.new("NodeSocketObject","End Object")
-			node_group.inputs.new("NodeSocketFloat","Radius")
+			node_group.inputs.new(socketType,name)
 		else:
-			node_group.interface.new_socket(name="Start Object",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketObject")
-			node_group.interface.new_socket(name="End Object",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketObject")
-			node_group.interface.new_socket(name="Radius",description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type="NodeSocketFloat")
-		mat = getChainLinkColMat()
-		inNode = nodes.new('NodeGroupInput')
-		inNode.location = (0,0)
-		startObjInfoNode = nodes.new('GeometryNodeObjectInfo')
-		startObjInfoNode.location = (300,0)
-		links.new(inNode.outputs["Start Object"],startObjInfoNode.inputs["Object"])
-		endObjInfoNode = nodes.new('GeometryNodeObjectInfo')
-		endObjInfoNode.location = (300,-300)
-		links.new(inNode.outputs["End Object"],endObjInfoNode.inputs["Object"])
-		addNode = nodes.new('ShaderNodeVectorMath')
-		addNode.location = (600,0)
-		addNode.operation = "ADD"
-		links.new(startObjInfoNode.outputs["Location"],addNode.inputs[0])
-		links.new(endObjInfoNode.outputs["Location"],addNode.inputs[1])
-		midNode = nodes.new('ShaderNodeVectorMath')
-		midNode.location = (800,0)
-		midNode.operation = "SCALE"
-		links.new(addNode.outputs["Vector"],midNode.inputs[0])
-		midNode.inputs["Scale"].default_value = 0.5
-		uvSphereNode = nodes.new('GeometryNodeMeshUVSphere')
-		uvSphereNode.location = (800,-200)
-		links.new(inNode.outputs["Radius"],uvSphereNode.inputs["Radius"])
-		transformNode = nodes.new('GeometryNodeTransform')
-		transformNode.location = (1000,0)
-		links.new(uvSphereNode.outputs["Mesh"],transformNode.inputs["Geometry"])
-		links.new(midNode.outputs["Vector"],transformNode.inputs["Translation"])
-		curveLineNode = nodes.new('GeometryNodeCurvePrimitiveLine')
-		curveLineNode.location = (600,-300)
-		links.new(startObjInfoNode.outputs["Location"],curveLineNode.inputs["Start"])
-		links.new(endObjInfoNode.outputs["Location"],curveLineNode.inputs["End"])
-		#The pair line, dashed: display only, the game has no line.
-		#2k+1 equal segments of about DASH each (k = floor(length / (2 DASH))), every other one kept, so both ends are dashes
-		DASH = 0.004
-		distanceNode = nodes.new('ShaderNodeVectorMath')
-		distanceNode.location = (600,-450)
-		distanceNode.operation = "DISTANCE"
-		links.new(startObjInfoNode.outputs["Location"],distanceNode.inputs[0])
-		links.new(endObjInfoNode.outputs["Location"],distanceNode.inputs[1])
-		dashCountNode = nodes.new('ShaderNodeMath')
-		dashCountNode.location = (800,-450)
-		dashCountNode.operation = "DIVIDE"
-		links.new(distanceNode.outputs["Value"],dashCountNode.inputs[0])
-		dashCountNode.inputs[1].default_value = 2.0 * DASH
-		dashFloorNode = nodes.new('ShaderNodeMath')
-		dashFloorNode.location = (1000,-450)
-		dashFloorNode.operation = "FLOOR"
-		links.new(dashCountNode.outputs["Value"],dashFloorNode.inputs[0])
-		pointCountNode = nodes.new('ShaderNodeMath')
-		pointCountNode.location = (1200,-450)
-		pointCountNode.operation = "MULTIPLY_ADD"
-		links.new(dashFloorNode.outputs["Value"],pointCountNode.inputs[0])
-		pointCountNode.inputs[1].default_value = 2.0
-		pointCountNode.inputs[2].default_value = 2.0
-		resampleNode = nodes.new('GeometryNodeResampleCurve')
-		resampleNode.location = (800,-300)
-		links.new(curveLineNode.outputs["Curve"],resampleNode.inputs["Curve"])
-		links.new(pointCountNode.outputs["Value"],resampleNode.inputs["Count"])
-		polylineNode = nodes.new('GeometryNodeCurveToMesh')
-		polylineNode.location = (1000,-300)
-		links.new(resampleNode.outputs["Curve"],polylineNode.inputs["Curve"])
-		indexNode = nodes.new('GeometryNodeInputIndex')
-		indexNode.location = (1000,-600)
-		gapNode = nodes.new('ShaderNodeMath')
-		gapNode.location = (1200,-600)
-		gapNode.operation = "FLOORED_MODULO"
-		links.new(indexNode.outputs["Index"],gapNode.inputs[0])
-		gapNode.inputs[1].default_value = 2.0
-		deleteGapsNode = nodes.new('GeometryNodeDeleteGeometry')
-		deleteGapsNode.location = (1200,-300)
-		deleteGapsNode.domain = "EDGE"
-		links.new(polylineNode.outputs["Mesh"],deleteGapsNode.inputs["Geometry"])
-		links.new(gapNode.outputs["Value"],deleteGapsNode.inputs["Selection"])
-		dashCurveNode = nodes.new('GeometryNodeMeshToCurve')
-		dashCurveNode.location = (1400,-300)
-		links.new(deleteGapsNode.outputs["Geometry"],dashCurveNode.inputs["Mesh"])
-		curveCircleNode = nodes.new('GeometryNodeCurvePrimitiveCircle')
-		curveCircleNode.location = (1400,-500)
-		curveCircleNode.inputs["Resolution"].default_value = 8
-		curveCircleNode.inputs["Radius"].default_value = 0.0005
-		curveToMeshNode = nodes.new('GeometryNodeCurveToMesh')
-		curveToMeshNode.location = (1600,-300)
-		links.new(dashCurveNode.outputs["Curve"],curveToMeshNode.inputs["Curve"])
-		links.new(curveCircleNode.outputs["Curve"],curveToMeshNode.inputs["Profile Curve"])
-		joinGeometryNode = nodes.new('GeometryNodeJoinGeometry')
-		joinGeometryNode.location = (1200,0)
-		links.new(transformNode.outputs["Geometry"],joinGeometryNode.inputs["Geometry"])
-		links.new(curveToMeshNode.outputs["Mesh"],joinGeometryNode.inputs["Geometry"])
-		setMaterialNode = nodes.new('GeometryNodeSetMaterial')
-		setMaterialNode.location = (1400,0)
-		setMaterialNode.inputs["Material"].default_value = mat
-		links.new(joinGeometryNode.outputs["Geometry"],setMaterialNode.inputs["Geometry"])
-		setSmoothShadeNode = nodes.new('GeometryNodeSetShadeSmooth')
-		setSmoothShadeNode.location = (1600,0)
-		links.new(setMaterialNode.outputs["Geometry"],setSmoothShadeNode.inputs["Geometry"])
+			node_group.interface.new_socket(name=name,description="Do not change this value manually, set it from the chain object",in_out ="INPUT", socket_type=socketType)
+	inNode = nodes.new('NodeGroupInput')
+	startObjInfoNode = nodes.new('GeometryNodeObjectInfo')
+	links.new(inNode.outputs["Start Object"],startObjInfoNode.inputs["Object"])
+	endObjInfoNode = nodes.new('GeometryNodeObjectInfo')
+	links.new(inNode.outputs["End Object"],endObjInfoNode.inputs["Object"])
+	addNode = nodes.new('ShaderNodeVectorMath')
+	addNode.operation = "ADD"
+	links.new(startObjInfoNode.outputs["Location"],addNode.inputs[0])
+	links.new(endObjInfoNode.outputs["Location"],addNode.inputs[1])
+	midNode = nodes.new('ShaderNodeVectorMath')
+	midNode.operation = "SCALE"
+	links.new(addNode.outputs["Vector"],midNode.inputs[0])
+	midNode.inputs["Scale"].default_value = 0.5
+	uvSphereNode = nodes.new('GeometryNodeMeshUVSphere')
+	links.new(inNode.outputs["Radius"],uvSphereNode.inputs["Radius"])
+	transformNode = nodes.new('GeometryNodeTransform')
+	links.new(uvSphereNode.outputs["Mesh"],transformNode.inputs["Geometry"])
+	links.new(midNode.outputs["Vector"],transformNode.inputs["Translation"])
+	setMaterialNode = nodes.new('GeometryNodeSetMaterial')
+	setMaterialNode.inputs["Material"].default_value = getChainLinkColMat()
+	links.new(transformNode.outputs["Geometry"],setMaterialNode.inputs["Geometry"])
+	setSmoothShadeNode = nodes.new('GeometryNodeSetShadeSmooth')
+	links.new(setMaterialNode.outputs["Geometry"],setSmoothShadeNode.inputs["Geometry"])
+	outNode = nodes.new('NodeGroupOutput')
+	if bpy.app.version < (3,4,0):
+		outNode.inputs.new('NodeSocketGeometry', 'Geometry')
+	elif bpy.app.version < (4,0,0):
+		node_group.outputs.new('NodeSocketGeometry', 'Geometry')
+	else:
+		node_group.interface.new_socket(name="Geometry",description="",in_out ="OUTPUT", socket_type="NodeSocketGeometry")
+	links.new(setSmoothShadeNode.outputs["Geometry"],outNode.inputs["Geometry"])
+	return node_group
+
+def getDashedLineGeoNodeTree():
+	"""A dashed curve from Start to End: 2k+1 equal segments of about DASH each (k = floor(length / (2 DASH))),
+	every other one kept, so both ends are dashes."""
+	TREENAME = "ChainDashedLineGeoNodeTreeV1"
+	if TREENAME in bpy.data.node_groups:
+		return bpy.data.node_groups[TREENAME]
+	DASH = 0.004
+	node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
+	nodes = node_group.nodes
+	links = node_group.links
+	if bpy.app.version < (4,0,0):
+		node_group.inputs.new("NodeSocketVector","Start")
+		node_group.inputs.new("NodeSocketVector","End")
+		node_group.outputs.new("NodeSocketGeometry","Curve")
+	else:
+		node_group.interface.new_socket(name="Start",in_out ="INPUT", socket_type="NodeSocketVector")
+		node_group.interface.new_socket(name="End",in_out ="INPUT", socket_type="NodeSocketVector")
+		node_group.interface.new_socket(name="Curve",in_out ="OUTPUT", socket_type="NodeSocketGeometry")
+	inNode = nodes.new('NodeGroupInput')
+	lineNode = nodes.new('GeometryNodeCurvePrimitiveLine')
+	links.new(inNode.outputs["Start"],lineNode.inputs["Start"])
+	links.new(inNode.outputs["End"],lineNode.inputs["End"])
+	distanceNode = nodes.new('ShaderNodeVectorMath')
+	distanceNode.operation = "DISTANCE"
+	links.new(inNode.outputs["Start"],distanceNode.inputs[0])
+	links.new(inNode.outputs["End"],distanceNode.inputs[1])
+	dashCountNode = nodes.new('ShaderNodeMath')
+	dashCountNode.operation = "DIVIDE"
+	links.new(distanceNode.outputs["Value"],dashCountNode.inputs[0])
+	dashCountNode.inputs[1].default_value = 2.0 * DASH
+	dashFloorNode = nodes.new('ShaderNodeMath')
+	dashFloorNode.operation = "FLOOR"
+	links.new(dashCountNode.outputs["Value"],dashFloorNode.inputs[0])
+	pointCountNode = nodes.new('ShaderNodeMath')
+	pointCountNode.operation = "MULTIPLY_ADD"
+	links.new(dashFloorNode.outputs["Value"],pointCountNode.inputs[0])
+	pointCountNode.inputs[1].default_value = 2.0
+	pointCountNode.inputs[2].default_value = 2.0
+	resampleNode = nodes.new('GeometryNodeResampleCurve')
+	links.new(lineNode.outputs["Curve"],resampleNode.inputs["Curve"])
+	links.new(pointCountNode.outputs["Value"],resampleNode.inputs["Count"])
+	polylineNode = nodes.new('GeometryNodeCurveToMesh')
+	links.new(resampleNode.outputs["Curve"],polylineNode.inputs["Curve"])
+	indexNode = nodes.new('GeometryNodeInputIndex')
+	gapNode = nodes.new('ShaderNodeMath')
+	gapNode.operation = "FLOORED_MODULO"
+	links.new(indexNode.outputs["Index"],gapNode.inputs[0])
+	gapNode.inputs[1].default_value = 2.0
+	deleteGapsNode = nodes.new('GeometryNodeDeleteGeometry')
+	deleteGapsNode.domain = "EDGE"
+	links.new(polylineNode.outputs["Mesh"],deleteGapsNode.inputs["Geometry"])
+	links.new(gapNode.outputs["Value"],deleteGapsNode.inputs["Selection"])
+	dashCurveNode = nodes.new('GeometryNodeMeshToCurve')
+	links.new(deleteGapsNode.outputs["Geometry"],dashCurveNode.inputs["Mesh"])
+	outNode = nodes.new('NodeGroupOutput')
+	links.new(dashCurveNode.outputs["Curve"],outNode.inputs["Curve"])
+	return node_group
+
+LINK_PAIR_RADIUS = 0.002#straight pairs
+LINK_DIAGONAL_RADIUS = 0.001#diagonal pairs (pull only), dashed
+
+def buildLinkPairsGeoNodeTree(node_group, pairs):
+	"""Fill a link's own tree with its node pairs: (node A, node B, diagonal). The nodes are named in the tree, so
+	it is rebuilt whenever the pairs change. Positions are relative to the link object."""
+	nodes = node_group.nodes
+	links = node_group.links
+	nodes.clear()
+	if bpy.app.version < (3,4,0):
 		outNode = nodes.new('NodeGroupOutput')
-		outNode.location = (1800,0)
-		if bpy.app.version < (3,4,0):
-			outNode.inputs.new('NodeSocketGeometry', 'Geometry')
-		elif bpy.app.version < (4,0,0):
-			node_group.outputs.new('NodeSocketGeometry', 'Geometry')
-		else:
+		if "Geometry" not in outNode.inputs:
+			outNode.inputs.new('NodeSocketGeometry','Geometry')
+	else:
+		if bpy.app.version < (4,0,0):
+			if "Geometry" not in node_group.outputs:
+				node_group.outputs.new('NodeSocketGeometry','Geometry')
+		elif not any(item.item_type == 'SOCKET' and item.in_out == 'OUTPUT' for item in node_group.interface.items_tree):
 			node_group.interface.new_socket(name="Geometry",description="",in_out ="OUTPUT", socket_type="NodeSocketGeometry")
-		links.new(setSmoothShadeNode.outputs["Geometry"],outNode.inputs["Geometry"])
-		return node_group
-	return bpy.data.node_groups[TREENAME]
+		outNode = nodes.new('NodeGroupOutput')
+	joins = {}
+	for diagonal in (False,True):
+		joinNode = nodes.new('GeometryNodeJoinGeometry')
+		circleNode = nodes.new('GeometryNodeCurvePrimitiveCircle')
+		circleNode.inputs["Resolution"].default_value = 6
+		circleNode.inputs["Radius"].default_value = LINK_DIAGONAL_RADIUS if diagonal else LINK_PAIR_RADIUS
+		tubeNode = nodes.new('GeometryNodeCurveToMesh')
+		links.new(joinNode.outputs["Geometry"],tubeNode.inputs["Curve"])
+		links.new(circleNode.outputs["Curve"],tubeNode.inputs["Profile Curve"])
+		joins[diagonal] = (joinNode, tubeNode)
+	for objA, objB, diagonal in pairs:
+		infos = []
+		for obj in (objA, objB):
+			infoNode = nodes.new('GeometryNodeObjectInfo')
+			infoNode.transform_space = 'RELATIVE'
+			infoNode.inputs["Object"].default_value = obj
+			infos.append(infoNode)
+		if diagonal:
+			lineNode = nodes.new('GeometryNodeGroup')
+			lineNode.node_tree = getDashedLineGeoNodeTree()
+		else:
+			lineNode = nodes.new('GeometryNodeCurvePrimitiveLine')
+		links.new(infos[0].outputs["Location"],lineNode.inputs["Start"])
+		links.new(infos[1].outputs["Location"],lineNode.inputs["End"])
+		links.new(lineNode.outputs[0],joins[diagonal][0].inputs["Geometry"])
+	meshJoin = nodes.new('GeometryNodeJoinGeometry')
+	for diagonal in (False,True):
+		links.new(joins[diagonal][1].outputs["Mesh"],meshJoin.inputs["Geometry"])
+	materialNode = nodes.new('GeometryNodeSetMaterial')
+	materialNode.inputs["Material"].default_value = getChainLinkMat()
+	links.new(meshJoin.outputs["Geometry"],materialNode.inputs["Geometry"])
+	links.new(materialNode.outputs["Geometry"],outNode.inputs[0])
 
 def getNodeCapsuleGeoNodeTree():
 	"""A Capsule node's collision capsule: from the node toward the next node, its ends pulled in by the stretch
