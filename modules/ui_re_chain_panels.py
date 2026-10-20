@@ -7,7 +7,7 @@ from bpy.types import (Panel,
 					   )
 
 from .file_re_chain import version
-from .re_chain_names import propLabel,pickName,LINK_MODE_NAMES
+from .re_chain_names import propLabel,pickName
 
 def tag_redraw(context, space_type="PROPERTIES", region_type="WINDOW"):
 	for window in context.window_manager.windows:
@@ -772,12 +772,7 @@ class OBJECT_PT_ChainLinkPanel(Panel):
 		stretchOn = not isChain2 or (linkOn and re_chain_chainlink.linkAttrFlags & 0x1)
 		greyed(col2,stretchOn).prop(re_chain_chainlink, "distanceShrinkLimitCoef")
 		greyed(col2,stretchOn).prop(re_chain_chainlink, "distanceExpandLimitCoef")
-		row = col2.split(factor=0.4)
-		row.alignment = 'RIGHT'
-		row.label(text="Link Mode")
-		buttons = row.row(align=True)
-		for value,name,legacy in LINK_MODE_NAMES:
-			buttons.prop_enum(re_chain_chainlink,"linkMode",value,text=pickName(name,legacy))
+		col2.prop(re_chain_chainlink, "linkMode")
 		from .re_chain_propertyGroups import linkCollisionNodePairs,linkCollisionObjects,linkCollisionSetting,LINK_COLLISION_FLAGS
 		linkCol = greyed(col2,linkOn)
 		row = linkCol.row()

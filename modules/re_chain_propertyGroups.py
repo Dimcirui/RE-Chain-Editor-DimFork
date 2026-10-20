@@ -16,6 +16,7 @@ from .pymmh3 import hash_wide
 from .file_re_chain2 import Chain2SettingsSubData
 
 from .re_chain_presets import reloadPresets
+from .re_chain_names import LINK_MODE_NAMES,useLegacyNames
 
 #V2 - Removed AttrFlags enum, replaced with a pseudo enum using int value and operator due to large variations in values
 
@@ -447,6 +448,16 @@ def linkCollisionSetting(chainLinkObj):
 				index = headers[0].re_chain_header.defaultSettingIdx
 				return headers[0], settings[index] if 0 <= index < len(settings) else None
 	return None, None
+
+#Link Mode items: the names, or the original ones with the add-on preference (see re_chain_names). Kept at module level:
+#Blender needs the strings a dynamic enum returns to stay alive
+LINK_MODE_DESCRIPTIONS = {"0":"Node j of each group counted from the root, after Skip Group A / B",
+	"1":"Node j of each group counted from the tip (the skips come off the tip)",
+	"2":"MH Wilds builds no link for mode 2 and up"}
+LINK_MODE_ITEMS = {legacy:[(value,legacyName if legacy else name,LINK_MODE_DESCRIPTIONS[value],index) for index,(value,name,legacyName) in enumerate(LINK_MODE_NAMES)] for legacy in (False,True)}
+
+def getLinkModes(self, context):
+	return LINK_MODE_ITEMS[useLegacyNames()]
 
 def update_LinkCollisionTargets(self, context):
 	obj = self.id_data
@@ -2558,10 +2569,7 @@ class chainLinkPropertyGroup(bpy.types.PropertyGroup):
 	linkMode: EnumProperty(
 		name="Link Mode",
 		description="Which end the pairs are counted from",
-		items=[ ("0", "Root to Tip", "Node j of each group counted from the root, after Skip Group A / B"),
-				("1", "Tip to Root", "Node j of each group counted from the tip (the skips come off the tip)"),
-				("2", "Off", "MH Wilds builds no link for mode 2 and up"),
-			   ],
+		items = getLinkModes,
 		update = update_LinkCollisionTargets
 		)
 	connectFlagBits: IntProperty(
