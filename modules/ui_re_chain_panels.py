@@ -604,7 +604,7 @@ class OBJECT_PT_ChainNodePanel(Panel):
 		mode = re_chain_chainnode.angleMode
 		angleOn = not isChain2 or (groupAttr & 0x2 and not groupAttr & 0x2000 and mode != "0")
 		greyed(col2,angleOn).prop(re_chain_chainnode, "angleLimitRad")
-		greyed(col2,angleOn and (not isChain2 or mode in ("3","4"))).prop(re_chain_chainnode, "angleLimitDistance")
+		greyed(col2,angleOn and (not isChain2 or mode in ("3","4"))).prop(re_chain_chainnode, "angleLimitDistance",slider = True)
 		bounceOn = angleOn and (not isChain2 or (mode == "2" and groupAttr & 0x1000))
 		greyed(col2,bounceOn).prop(re_chain_chainnode, "angleLimitRestitution")
 		greyed(col2,bounceOn).prop(re_chain_chainnode, "angleLimitRestituteStopSpeed")

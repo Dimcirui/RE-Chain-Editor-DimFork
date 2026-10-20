@@ -2110,6 +2110,8 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		name = "Angle Limit Distance",
 		description = "Used by Cone Box and Oval only. Cone Box: the swing's Z is capped at this x the segment length. Oval: the cone is flattened to this x its width (0 locks Z, 1 is round)",
 		default = 0.00,
+		soft_min=0.000,
+		soft_max=1.000,
 		update = update_AngleLimitMode
 		)
 	angleLimitRestitution: FloatProperty(
