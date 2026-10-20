@@ -753,7 +753,7 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 	"""
 	errFlagBits: IntProperty(
 		name="Error Flags",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known",
+		description="Bit flags; use the button to tick them. Their effect is unknown",
 		default = 0,
 		min = 0,
 		max = 2147483647,
@@ -765,7 +765,7 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		)
 	rotationOrder: IntProperty(
 		name="Last Exe Order",
-		description="The groups step in batches by their Exe Order, from 0 up to this value; a group whose Exe Order is higher never steps. Vanilla goes up to 6. In chain (not chain2) files this is the rotation order",
+		description="The groups step in batches by their Exe Order, from 0 up to this value; a group whose Exe Order is higher never steps. Usually 0 to 6. In chain (not chain2) files this is the rotation order",
 		default = 0,
 		min = 0,
 		max = 255,
@@ -777,7 +777,7 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		)
 	calculateMode: EnumProperty(
 		name="Calculate Mode",
-		description="Used only when the prefab's CalculateMode is 0: 1 one substep a frame; 2 and 3 two substeps when the frame is long against the step frame, 2 colliding on the last substep only. Every vanilla file has 3",
+		description="Used only when the prefab's CalculateMode is 0: 1 one substep a frame; 2 and 3 two substeps when the frame is long against the step frame, 2 colliding on the last substep only. Usually 3",
 		items=[ ("0", "CalculateMode_Default", ""),
 				("1", "CalculateMode_Performance", ""),
 				("2", "CalculateMode_Balance", ""),
@@ -793,7 +793,7 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		)
 	parameterFlag: IntProperty(
 		name="Chain Parameter Flags",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known",
+		description="Bit flags; use the button to tick them. Their effect is unknown",
 		default = 0,
 		min = 0,
 		max = 2147483647,
@@ -819,56 +819,56 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		)
 	collisionFilterHitBits0: IntProperty(
 		name="Collision Hit Flag 0",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits1: IntProperty(
 		name="Collision Hit Flag 1",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits2: IntProperty(
 		name="Collision Hit Flag 2",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits3: IntProperty(
 		name="Collision Hit Flag 3",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits4: IntProperty(
 		name="Collision Hit Flag 4",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits5: IntProperty(
 		name="Collision Hit Flag 5",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits6: IntProperty(
 		name="Collision Hit Flag 6",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	collisionFilterHitBits7: IntProperty(
 		name="Collision Hit Flag 7",
-		description="Bit flags; use the button to tick them. What they do in MH Wilds is not known. Vanilla files use 110 (Self, Model, Collider, Group and VGround)",
+		description="Bit flags; use the button to tick them. Their effect is unknown. Usually 110 (Self, Model, Collider, Group and VGround)",
 		default = 0,
 		min = 0,
 		max = 255,
@@ -876,7 +876,7 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 	#chain2
 	highFPSCalculateMode: IntProperty(
 		name="Restart Damping Hold Iterations",
-		description="How many restart iterations run with the damping held at 1.0. Vanilla Rathian has 2",
+		description="How many restart iterations run with the damping held at 1.0",
 		default = 1,
 		min = 0,
 		max = 65535
@@ -885,35 +885,35 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 	
 	restartIterationsAlt: IntProperty(
 		name="Alternative Restart Iterations",
-		description="The restart iteration count used when Chain Attribute Flags has Alternative Restart Iterations ticked. Vanilla Rathian has 20",
+		description="The restart iteration count used when Chain Attribute Flags has Alternative Restart Iterations ticked",
 		default = 0,
 		min = 0,
 		max = 65535,
 		)
 	freeLinkJoint: IntProperty(
 		name="Free Link Joint",
-		description="Non-zero builds the rest frames from world matrices and turns off the groups' extra tail node. 0 in every vanilla file checked",
+		description="Non-zero builds the rest frames from world matrices and turns off the groups' extra tail node. Usually 0",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	taperedCollideMethod: IntProperty(
 		name="Tapered Collide Method",
-		description="What it selects is not known",
+		description="Its effect is unknown",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	wilds_unkn1: IntProperty(
 		name="Default Accumulate Mode",
-		description="1 waits until the accumulated time exceeds half a step before stepping. 1 in every vanilla file checked",
+		description="1 waits until the accumulated time exceeds half a step before stepping. Usually 1",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	wilds_unkn2: IntProperty(
 		name="Restart Damping Hold",
-		description="1 holds the damping at 1.0 for Restart Damping Hold Iterations, then zeroes the velocity. Vanilla Rathian has 1",
+		description="1 holds the damping at 1.0 for Restart Damping Hold Iterations, then zeroes the velocity",
 		default = 0,
 		min = 0,
 		max = 255,
@@ -1021,7 +1021,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	randomCycleScaling: FloatProperty(
 		name = "Random Cycle Scaling",
-		description="s scales each cycle by clamp(2 s R + 1 - s, 0.1, 2) for a random R and starts at a random phase; 0 starts every component at phase -interval with scale 1. Vanilla records use 1.0",#TODO Add description
+		description="s scales each cycle by clamp(2 s R + 1 - s, 0.1, 2) for a random R and starts at a random phase; 0 starts every component at phase -interval with scale 1. Usually 1.0",#TODO Add description
 		default = 1.0,
 		)
 	
@@ -1575,7 +1575,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	envWindEffectCoef: FloatProperty(
 		name = "Env Wind Effect Coefficient",
-		description = "Scales the stage (environment) wind, for groups with Environment Wind ticked. Vanilla collar strips use 1.0",
+		description = "Scales the stage (environment) wind, for groups with Environment Wind ticked",
 		default = 0.25,
 		)
 	motionForce: FloatProperty(
@@ -1601,12 +1601,12 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	elasticLimit: FloatProperty(
 		name = "Elastic Limit",
-		description = "The stretch cap for segments whose Coefficient Of Elasticity leaves them soft. 0 in every vanilla file",
+		description = "The stretch cap for segments whose Coefficient Of Elasticity leaves them soft. Usually 0",
 		default = 0.0,
 		)
 	motionForceCalcType: EnumProperty(
 		name="Motion Force Calculation Type (chain2)",
-		description="How the motion force is worked out: Motion Force, or Init Shape Force, which takes another path each substep and on a pose reset. What Init Shape Force does exactly is not known\nVersion 9 and above",
+		description="How the motion force is worked out: Motion Force, or Init Shape Force, which takes another path each substep and on a pose reset. The exact effect of Init Shape Force is unknown\nVersion 9 and above",
 		items=[ ("0", "MotionForceCalcType_MotionForce", ""),
 				("1", "MotionForceCalcType_InitShapeForce", ""),
 			  ]
@@ -1793,14 +1793,14 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 		)
 	rotationOrder: IntProperty(
 		name="Exe Order",
-		description="The batch the group steps in; it never steps if this is above the header's Last Exe Order. Vanilla goes up to 6. In chain (not chain2) files this is the rotation order",
+		description="The batch the group steps in; it never steps if this is above the header's Last Exe Order. Usually 0 to 6. In chain (not chain2) files this is the rotation order",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	autoBlendCheckNodeNo: IntProperty(
 		name = "Auto Blend Check Node Number",
-		description="Its use in MH Wilds is not known",#TODO Add description
+		description="Its effect is unknown",#TODO Add description
 		default = 0,
 		)
 	attrFlags: IntProperty(
@@ -1870,7 +1870,7 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 		)
 	endRotConstMax: FloatProperty(
 		name = "End Rotation Constant Max",
-		description = "MH Wilds stores it, but nothing is known to read it. Vanilla uses 4 pi\nVersion 35 and above only",#TODO Add description
+		description = "Its effect is unknown. Usually 4 pi\nVersion 35 and above only",#TODO Add description
 		default = 12.566370964050293,
 		)
 	tagCount: IntProperty(
@@ -1880,14 +1880,14 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 		)
 	angleLimitDirectionMode: EnumProperty(
 		name="Angle Limit Direction Mode",
-		description="Base Pose is the known mode; what Motion Pose does is not known\nVersion 35 and above only",
+		description="Base Pose is the usual mode; the effect of Motion Pose is unknown\nVersion 35 and above only",
 		items=[ ("0", "AngleLimitDirectionMode_BasePose", ""),
 				("1", "AngleLimitDirectionMode_MotionPose", ""),
 			  ]
 		)
 	colliderQualityLevel: IntProperty(
 		name = "Collider Quality Level",
-		description="Its use in MH Wilds is not known\nVersion 48 and above only",#TODO Add description
+		description="Its effect is unknown\nVersion 48 and above only",#TODO Add description
 		default = 0,
 		)
 	
@@ -1910,7 +1910,7 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 		)
 	nodeInterpolationMode: EnumProperty(
 		name="Node Interpolation Mode (chain2)",
-		description="chain2: how the nodes Interpolation Count skips are filled in at output. The only vanilla user has 3",
+		description="chain2: how the nodes Interpolation Count skips are filled in at output",
 		items=[ ("0", "NodeInterpolationMode_None", ""),
 				("1", "NodeInterpolationMode_Linear", ""),
 				("2", "NodeInterpolationMode_SplineLerp", ""),
@@ -2047,7 +2047,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		)
 	attrFlags: IntProperty(
 		name="Attribute Flags",
-		description="Bit flags; use the button to tick them. Extra Root Node, on the group's first node: the game adds a pinned extra root node and frees this node; such nodes take no share of the angle and length corrections. Part Motion Blend is not known",
+		description="Bit flags; use the button to tick them. Extra Root Node, on the group's first node: the game adds a pinned extra root node and frees this node; such nodes take no share of the angle and length corrections. The effect of Part Motion Blend is unknown",
 		default = 0,
 		)
 	windCoef: FloatProperty(
@@ -2622,12 +2622,12 @@ class chainLinkPropertyGroup(bpy.types.PropertyGroup):
 	#Chain2 (MH Wilds and newer)
 	clspFlags0: IntProperty(
 		name = "CLSP Flags A",
-		description="Bitflag that determines what CLSP Tag Groups the link collision collides with. Vanilla links mostly use the union of the two chain groups' CLSP Flags A.\nChain2 version 14 and above only",
+		description="Bitflag that determines what CLSP Tag Groups the link collision collides with. Usually the union of the two chain groups' CLSP Flags A.\nChain2 version 14 and above only",
 		default = -1,
 		)
 	clspFlags1: IntProperty(
 		name = "CLSP Flags B",
-		description="Bitflag that determines what CLSP Tag Groups of other objects the link collision collides with. Vanilla links mostly use 0.\nChain2 version 14 and above only",
+		description="Bitflag that determines what CLSP Tag Groups of other objects the link collision collides with. Usually 0.\nChain2 version 14 and above only",
 		default = -1,
 		)
 def getChainLink(ChainLinkData,targetObject,isChain2 = False):

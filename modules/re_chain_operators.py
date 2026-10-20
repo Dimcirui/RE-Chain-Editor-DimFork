@@ -1009,7 +1009,7 @@ def hasChildNode(obj):
 class WM_OT_FixAngleLimitFrames(Operator):
 	bl_label = "Put Angle Limits on Parent Bones"
 	bl_idname = "re_chain.fix_angle_limit_frames"
-	bl_description = "MH Wilds measures each node's angle limit direction in its PARENT bone's rotation (node i-1's bone; the joint the chain hangs from for the first node). Chains imported before this fix showed the cone in the node's own bone: this moves every node in the chain collection (or the selected chain groups) onto its parent bone and redraws the cones at their real angle. The file's angle limit directions are not changed. Directions made with Align Angle Limits before this fix were computed in the old space: align them again"
+	bl_description = "Put each node's angle limit frame on its parent bone, where MH Wilds measures the angle limit direction (node i-1's bone; for the first node, the joint the chain hangs from), and redraw the cones at their real angle. Acts on the selected chain groups, or every chain of the chain collection. The angle limit directions themselves are not changed. Directions made with Align Angle Limits in older versions of the add-on need aligning again"
 	bl_options = {'UNDO'}
 	def execute(self, context):
 		from .re_chain_propertyGroups import fixAngleLimitFrame
@@ -1896,7 +1896,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	CollisionGroup : bpy.props.BoolProperty(
 		name="Collision Group",
-		description="A collision pass whose use is not known",
+		description="A collision pass whose effect is unknown",
 		default = False)
 	EnablePartBlend : bpy.props.BoolProperty(
 		name="Enable Part Blend",
@@ -1916,7 +1916,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	StretchBoth : bpy.props.BoolProperty(
 		name="Stretch Both",
-		description="While it is on, the angle limits are skipped. Its other effects are not traced",
+		description="While it is on, the angle limits are skipped. Its other effects are unknown",
 		default = False)
 	EndRotConstraint : bpy.props.BoolProperty(
 		name="End Rot Constraint",
@@ -1941,7 +1941,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	StretchBothAutoScale : bpy.props.BoolProperty(
 		name="Stretch Both Auto Scale",
-		description="Its effect is not traced",
+		description="Its effect is unknown",
 		default = False)
 	
 	def draw(self,context):
@@ -2102,7 +2102,7 @@ class WM_OT_SetNodeAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	PartMotionBlend : bpy.props.BoolProperty(
 		name="Part Motion Blend",
-		description="Its use in MH Wilds is not known",
+		description="Its effect is unknown",
 		default = False)
 	Jiggle : bpy.props.BoolProperty(
 		name="Extra Root Node",
@@ -2265,7 +2265,7 @@ class WM_OT_SetJiggleAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	OverrideDamping : bpy.props.BoolProperty(
 		name="Override Damping",
-		description="Its use in MH Wilds is not known",
+		description="Its effect is unknown",
 		default = False)
 	
 	def draw(self,context):
