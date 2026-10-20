@@ -280,6 +280,12 @@ class Chain2SettingsData():
 		#DR
 		self.motionForceCalcType = 0#Sometimes 1, Dead Rising npc57_Chain2
 		self.padding = 0
+		#MH Wilds: +176 is ElasticLimit (f32), +180 MotionForceCalcType (u8) and 3 bytes kept as they are
+		#(the runtime getters, vmovss / mov al, read from the exe by Physics_Sim: re/notes/chain2_runtime.md)
+		self.elasticLimit = 0.0
+		#MH Wilds: +176 is ElasticLimit (f32), +180 MotionForceCalcType (u8) and 3 bytes kept as they are
+		#(the runtime getters, vmovss / mov al, read from the exe by Physics_Sim: re/notes/chain2_runtime.md)
+		self.elasticLimit = 0.0
 		
 		#MH Wilds
 		#Not present on versions below 12
@@ -356,7 +362,12 @@ class Chain2SettingsData():
 				entry.read(file)
 				self.subDataList.append(entry)
 			file.seek(currentPos2)
-		if version >= VERSION_DR:
+		if version >= VERSION_MHWILDS:
+			self.elasticLimit = read_float(file)
+			packed = read_uint(file)
+			self.motionForceCalcType = packed & 0xFF
+			self.padding = packed >> 8
+		elif version >= VERSION_DR:
 			self.motionForceCalcType = read_uint(file)
 			self.padding = read_uint(file)
 			
@@ -408,7 +419,10 @@ class Chain2SettingsData():
 			write_float(file, self.subDataUnkn5)
 			write_float(file, self.subDataUnkn6)
 			write_uint64(file, self.subDataOffset)
-		if version >= VERSION_DR:
+		if version >= VERSION_MHWILDS:
+			write_float(file, self.elasticLimit)
+			write_uint(file, (self.motionForceCalcType & 0xFF) | ((self.padding & 0xFFFFFF) << 8))
+		elif version >= VERSION_DR:
 			write_uint(file, self.motionForceCalcType)
 			write_uint(file, self.padding)
 	def __str__(self):

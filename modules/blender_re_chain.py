@@ -589,6 +589,7 @@ def importChainFile(filepath,options,isChain2 = False):
 			name = subName + "_" + str(terminateNodeName)
 		chainGroupObj = createCurve(name, [("TYPE","RE_CHAIN_CHAINGROUP")],chainGroupParent,chainEntryCollection)
 		getChainGroup(chainGroup,chainGroupObj,isChain2)
+		chainGroupObj["windIDFromFile"] = True#its own +0x0F, kept: the game reads it on groups without attribute 0x400
 		endBone = findBone(terminateNodeName,armature)
 
 
@@ -1407,11 +1408,13 @@ def exportChainFile(filepath,options, version, isChain2 = False):
 			if chainGroupObj.parent != None and chainGroupObj.parent.parent != None and chainGroupObj.parent.parent.get("TYPE") == "RE_CHAIN_WINDSETTINGS":
 				windSettingsParentObj = chainGroupObj.parent.parent
 			
-			if windSettingsParentObj != None:
+			if chainGroupObj.get("windIDFromFile",False):
+				chainGroup.windID = chainGroupObj.re_chain_chaingroup.fileWindID
+			elif windSettingsParentObj != None:
 				chainGroup.windID = windSettingsParentObj.re_chain_windsettings.id
 
 			else:
-				chainGroup.windID = 0
+				chainGroup.windID = chainGroupObj.re_chain_chaingroup.fileWindID
 			
 			#Get nodes
 			nodeObjList = []

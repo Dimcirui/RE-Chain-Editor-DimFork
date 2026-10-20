@@ -692,42 +692,33 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		description="Do not change unless you know what you're doing",
 		default = 0,
 		)
-	rotationOrder: EnumProperty(
-		name="Rotation Order",
-		description="Apply Data to attribute.",
-		items=[ ("0", "RotationOrder_XYZ", ""),
-				("1", "RotationOrder_YZX", ""),
-				("2", "RotationOrder_ZXY", ""),
-				("3", "RotationOrder_ZYX", ""),
-				("4", "RotationOrder_YXZ", ""),
-				("5", "RotationOrder_XZY", ""),
-			   ]
+	rotationOrder: IntProperty(
+		name="Last Exe Order",
+		description="chain2: the groups step in batches by their Exe Order, 0 to this value; a group whose Exe Order is higher never steps (MH Wilds, read from the exe by Physics_Sim). (Shown as Rotation Order before; chain v1 keeps that meaning.) Vanilla goes up to 6",
+		default = 0,
+		min = 0,
+		max = 255,
 		)
 	defaultSettingIdx: IntProperty(
 		name = "Default Setting Index",
-		description="Default Setting Index",#TODO Add description
+		description="Picks the chain setting (in export order, by name) whose Group Default Attribute switches the link collisions on (MH Wilds, read from the exe by Physics_Sim). The setting a group falls back to when its setting ID matches none is the one with Setting Attribute Flags 0x1 (Default), not this",#TODO Add description
 		default = 0,
 		)
 	calculateMode: EnumProperty(
 		name="Calculate Mode",
-		description="Apply Data to attribute.",
+		description="Used only when the prefab's CalculateMode is 0 (MH Wilds, read from the exe by Physics_Sim): 1 one substep a frame; 2 and 3 two substeps when the frame is long against the step frame, 2 colliding on the last substep only. Every vanilla file has 3",
 		items=[ ("0", "CalculateMode_Default", ""),
 				("1", "CalculateMode_Performance", ""),
 				("2", "CalculateMode_Balance", ""),
 				("3", "CalculateMode_Quality", ""),
-			   ]
+			   ],
+		default = "1",
 		)
-	chainAttrFlags: EnumProperty(
+	chainAttrFlags: IntProperty(
 		name="Chain Attribute Flags",
-		description="Apply Data to attribute.",
-		items=[ ("0", "ChainAttrFlags_None", ""),
-				("1", "ChainAttrFlags_ModelCollisionPreset", ""),
-				("2", "ChainAttrFlags_UNKN2", ""),
-				("3", "ChainAttrFlags_UNKN3", ""),
-				("4", "ChainAttrFlags_UNKN4", ""),
-				("5", "ChainAttrFlags_UNKN5", ""),
-				("6", "ChainAttrFlags_UNKN6", ""),
-			   ]
+		description="A bitfield (MH Wilds, read from the exe by Physics_Sim): 0x1 ModelCollisionPreset, 0x2 use the alternative restart iteration count, 0x4 that restart's wind gate. Was a list of 0-6, which could not hold other combinations",
+		default = 0,
+		min = 0,
 		)
 	parameterFlag: EnumProperty(
 		name="Chain Parameter Flags",
@@ -737,9 +728,9 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 			   ]
 		)
 	calculateStepTime: FloatProperty(
-		name = "Calculate Step Time",
-		description = "Calculate Step Time",#TODO Add description
-		default = 2.0,
+		name = "Calculate Step Frame",
+		description = "The step length in frames, not seconds: every per-step factor is converted by rate = framerate / this (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 1.0,
 		)
 	modelCollisionSearch: IntProperty(
 		name="Model Collision Search",
@@ -869,27 +860,46 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 			   ]
 		)
 	#chain2
-	highFPSCalculateMode: EnumProperty(
-		name="High FPS Calculate Mode",
-		description="Apply Data to attribute.",
-		items=[ ("0", "HighFpsCalculateMode_Default", ""),
-				("1", "HighFpsCalculateMode_LimitedVariableStepTime", ""),
-				("2", "HighFpsCalculateMode_VariableStepTime", ""),
-			  ],
-		default = "1"
+	highFPSCalculateMode: IntProperty(
+		name="Restart Damping Hold Iterations",
+		description="Header +0x72 (u16, was shown as High FPS Calculate Mode 0-2): MH Wilds reads it as a count, the restart iterations run with damping held at 1.0 (chain+0x320, read from the exe by Physics_Sim). Vanilla Rathian has 2",
+		default = 1,
+		min = 0,
+		max = 65535
 		
 		)
 	
+	restartIterationsAlt: IntProperty(
+		name="Alternative Restart Iterations",
+		description="Header +0x70 (u16, was dropped on export): the restart iteration count used with Chain Attribute Flags 0x2 (chain+0x31c, read from the exe by Physics_Sim). Vanilla Rathian has 20",
+		default = 0,
+		min = 0,
+		max = 65535,
+		)
+	freeLinkJoint: IntProperty(
+		name="Free Link Joint",
+		description="Header +0x67 (was dropped on export): non-zero builds the rest frames from world matrices and turns off the groups' extra tail node (chain+0x360, read from the exe by Physics_Sim). 0 in every vanilla file checked",
+		default = 0,
+		min = 0,
+		max = 255,
+		)
+	taperedCollideMethod: IntProperty(
+		name="Tapered Collide Method",
+		description="Header +0x65 (was dropped on export). What it selects is not traced yet",
+		default = 0,
+		min = 0,
+		max = 255,
+		)
 	wilds_unkn1: IntProperty(
-		name="Wilds Unknown",
-		description="Likely a flag",
+		name="Default Accumulate Mode",
+		description="Header +0x74 (chain+0x3ac): 1 waits until the accumulated delta exceeds 0.5 before stepping (MH Wilds, read from the exe by Physics_Sim). 1 in every file dumped",
 		default = 0,
 		min = 0,
 		max = 255,
 		)
 	wilds_unkn2: IntProperty(
-		name="Wilds Unknown 2",
-		description="Likely a flag",
+		name="Restart Damping Hold",
+		description="Header +0x75 (chain+0x314): 1 holds the damping at 1.0 for Restart Damping Hold Iterations, then zeroes the velocity (MH Wilds, read from the exe by Physics_Sim). Vanilla Rathian has 1",
 		default = 0,
 		min = 0,
 		max = 255,
@@ -898,17 +908,20 @@ def getChainHeader(ChainHeaderData,targetObject,isChain2 = False):
 	#Done manually to be able to account for chain version differences eventually
 	targetObject.re_chain_header.errFlags = str(ChainHeaderData.errFlags)
 	targetObject.re_chain_header.masterSize = ChainHeaderData.masterSize
-	targetObject.re_chain_header.rotationOrder = str(ChainHeaderData.rotationOrder)
+	targetObject.re_chain_header.rotationOrder = ChainHeaderData.rotationOrder
 	targetObject.re_chain_header.defaultSettingIdx = ChainHeaderData.defaultSettingIdx
 	targetObject.re_chain_header.calculateMode = str(ChainHeaderData.calculateMode)
-	targetObject.re_chain_header.chainAttrFlags = str(ChainHeaderData.chainAttrFlags)
+	targetObject.re_chain_header.chainAttrFlags = ChainHeaderData.chainAttrFlags
 	targetObject.re_chain_header.parameterFlag = str(ChainHeaderData.parameterFlag)
 	targetObject.re_chain_header.calculateStepTime = ChainHeaderData.calculateStepTime
 	targetObject.re_chain_header.modelCollisionSearch = ChainHeaderData.modelCollisionSearch
 	if not isChain2:
 		targetObject.re_chain_header.legacyVersion = str(ChainHeaderData.legacyVersion)
 	else:
-		targetObject.re_chain_header.highFPSCalculateMode = str(ChainHeaderData.highFPSCalculateMode)
+		targetObject.re_chain_header.highFPSCalculateMode = ChainHeaderData.highFPSCalculateMode
+		targetObject.re_chain_header.restartIterationsAlt = ChainHeaderData.wilds_unkn0
+		targetObject.re_chain_header.freeLinkJoint = ChainHeaderData.freeLinkJoint
+		targetObject.re_chain_header.taperedCollideMethod = ChainHeaderData.taperedCollideMethod
 		targetObject.re_chain_header.wilds_unkn1 = ChainHeaderData.wilds_unkn1
 		targetObject.re_chain_header.wilds_unkn2 = ChainHeaderData.wilds_unkn2
 	targetObject.re_chain_header.collisionFilterHit0 = str(ChainHeaderData.collisionFilterHit0)
@@ -924,17 +937,20 @@ def getChainHeader(ChainHeaderData,targetObject,isChain2 = False):
 def setChainHeaderData(ChainHeaderData,targetObject,isChain2 = False):
 	ChainHeaderData.errFlags = int(targetObject.re_chain_header.errFlags)
 	ChainHeaderData.masterSize = targetObject.re_chain_header.masterSize 
-	ChainHeaderData.rotationOrder = int(targetObject.re_chain_header.rotationOrder)
+	ChainHeaderData.rotationOrder = targetObject.re_chain_header.rotationOrder
 	ChainHeaderData.defaultSettingIdx = targetObject.re_chain_header.defaultSettingIdx 
 	ChainHeaderData.calculateMode = int(targetObject.re_chain_header.calculateMode)
-	ChainHeaderData.chainAttrFlags = int(targetObject.re_chain_header.chainAttrFlags)
+	ChainHeaderData.chainAttrFlags = targetObject.re_chain_header.chainAttrFlags
 	ChainHeaderData.parameterFlag = int(targetObject.re_chain_header.parameterFlag)
 	ChainHeaderData.calculateStepTime = targetObject.re_chain_header.calculateStepTime
 	ChainHeaderData.modelCollisionSearch = int(targetObject.re_chain_header.modelCollisionSearch)
 	if not isChain2:
 		ChainHeaderData.legacyVersion = int(targetObject.re_chain_header.legacyVersion)
 	else:
-		ChainHeaderData.highFPSCalculateMode = int(targetObject.re_chain_header.highFPSCalculateMode)
+		ChainHeaderData.highFPSCalculateMode = targetObject.re_chain_header.highFPSCalculateMode
+		ChainHeaderData.wilds_unkn0 = targetObject.re_chain_header.restartIterationsAlt
+		ChainHeaderData.freeLinkJoint = targetObject.re_chain_header.freeLinkJoint
+		ChainHeaderData.taperedCollideMethod = targetObject.re_chain_header.taperedCollideMethod
 		ChainHeaderData.wilds_unkn1 = targetObject.re_chain_header.wilds_unkn1
 		ChainHeaderData.wilds_unkn2 = targetObject.re_chain_header.wilds_unkn2
 	ChainHeaderData.collisionFilterHit0 = int(targetObject.re_chain_header.collisionFilterHit0)
@@ -959,12 +975,15 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		description="Apply Data to attribute.",
 		items=[ ("0", "WindDirection_Global", ""),
 				("1", "WindDirection_Local", ""),
-			  ]
+			  ],
+		default = "1",
 		)
 	windCount: IntProperty(
 		name = "Wind Count",
-		description="Wind Count",#TODO Add description
+		description="The wind components in use: the setup takes up to 5 (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 1,
+		max = 5,
+		min = 0,
 		)
 	windType: EnumProperty(
 		name="Wind Type",
@@ -973,7 +992,8 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 				("1", "WindType_WindOrSpring", ""),
 				("2", "WindType_GravityWave", ""),
 				("3", "WindType_WindWave", ""),
-			  ]
+			  ],
+		default = "3",
 		)
 	randomDamping: FloatProperty(
 		name = "Random Damping",
@@ -987,8 +1007,8 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	randomCycleScaling: FloatProperty(
 		name = "Random Cycle Scaling",
-		description="Random Cycle Scaling",#TODO Add description
-		default = 0.0,
+		description="s scales each cycle by clamp(2 s R + 1 - s, 0.1, 2) for a random R and starts at a random phase; 0 starts every component at phase -interval with scale 1 (MH Wilds, read from the exe by Physics_Sim). Vanilla records use 1.0",#TODO Add description
+		default = 1.0,
 		)
 	
 	dir0: FloatVectorProperty(
@@ -1000,12 +1020,12 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	min0: FloatProperty(
 		name = "Direction 0 Min",
 		description="Direction 0 Min",#TODO Add description
-		default = 0.0,
+		default = 0.2,
 		)
 	max0: FloatProperty(
 		name = "Direction 0 Max",
 		description="Direction 0 Max",#TODO Add description
-		default = 0.0,
+		default = 1.0,
 		)
 	phaseShift0: FloatProperty(
 		name = "Direction 0 Phase Shift",
@@ -1015,12 +1035,12 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	cycle0: FloatProperty(
 		name = "Direction 0 Cycle",
 		description="Direction 0 Cycle",#TODO Add description
-		default = 0.0,
+		default = 240.0,
 		)
 	interval0: FloatProperty(
 		name = "Direction 0 Interval",
 		description="Direction 0 Interval",#TODO Add description
-		default = 0.0,
+		default = 30.0,
 		)
 	
 	dir1: FloatVectorProperty(
@@ -1037,7 +1057,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	max1: FloatProperty(
 		name = "Direction 1 Max",
 		description="Direction 1 Max",#TODO Add description
-		default = 0.0,
+		default = 1.0,
 		)
 	phaseShift1: FloatProperty(
 		name = "Direction 1 Phase Shift",
@@ -1047,7 +1067,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	cycle1: FloatProperty(
 		name = "Direction 1 Cycle",
 		description="Direction 1 Cycle",#TODO Add description
-		default = 0.0,
+		default = 60.0,
 		)
 	interval1: FloatProperty(
 		name = "Direction 1 Interval",
@@ -1069,7 +1089,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	max2: FloatProperty(
 		name = "Direction 2 Max",
 		description="Direction 2 Max",#TODO Add description
-		default = 0.0,
+		default = 1.0,
 		)
 	phaseShift2: FloatProperty(
 		name = "Direction 2 Phase Shift",
@@ -1079,7 +1099,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	cycle2: FloatProperty(
 		name = "Direction 2 Cycle",
 		description="Direction 2 Cycle",#TODO Add description
-		default = 0.0,
+		default = 60.0,
 		)
 	interval2: FloatProperty(
 		name = "Direction 2 Interval",
@@ -1101,7 +1121,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	max3: FloatProperty(
 		name = "Direction 3 Max",
 		description="Direction 3 Max",#TODO Add description
-		default = 0.0,
+		default = 1.0,
 		)
 	phaseShift3: FloatProperty(
 		name = "Direction 3 Phase Shift",
@@ -1111,7 +1131,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	cycle3: FloatProperty(
 		name = "Direction 3 Cycle",
 		description="Direction 3 Cycle",#TODO Add description
-		default = 0.0,
+		default = 60.0,
 		)
 	interval3: FloatProperty(
 		name = "Direction 3 Interval",
@@ -1133,7 +1153,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	max4: FloatProperty(
 		name = "Direction 4 Max",
 		description="Direction 4 Max",#TODO Add description
-		default = 0.0,
+		default = 1.0,
 		)
 	phaseShift4: FloatProperty(
 		name = "Direction 4 Phase Shift",
@@ -1143,7 +1163,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	cycle4: FloatProperty(
 		name = "Direction 4 Cycle",
 		description="Direction 4 Cycle",#TODO Add description
-		default = 0.0,
+		default = 60.0,
 		)
 	interval4: FloatProperty(
 		name = "Direction 4 Interval",
@@ -1276,6 +1296,13 @@ class CHAIN_UL_ChainSettingsSubDataList(bpy.types.UIList):
 
 class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 
+	fileWindID: IntProperty(
+		name = "Wind ID (without a parent)",
+		description = "Written when this object is not parented to a wind settings object (otherwise that wind's ID is), and always for a group imported from a file (its own field, read by the game on groups without attribute 0x400): -1 is no wind. Imported from the file; the export used to write 0, which points a vanilla -1 at wind 0 (497 vanilla settings and 189 groups have -1)",
+		default = 0,
+		min = -1,
+		max = 127,
+		)
 	id: IntProperty(
 		name = "ID",
 		description="Set the ID of the chain settings. Note that ID conflicts are resolved automatically upon export, so changing it is not necessary",
@@ -1315,7 +1342,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	settingsAttrFlags: IntProperty(
 		name="Setting Attribute Flags",
-		description="",
+		description="0x1 Default: a group whose setting ID matches no setting falls back to it; 0x2 | 0x4: one 2-bit Virtual Ground Type (0-3), not two flags; 0x8 Ignore Same Setting Group Collision; 0x10 follow the owner by the speed curve (MH Wilds, read from the exe by Physics_Sim)",
 		default = 0,
 		)
 	muzzleDirection: EnumProperty(
@@ -1341,46 +1368,46 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	damping: FloatProperty(
 		name = "Damping",
-		description = "Reduces movement of nodes",#TODO Add description
-		default = 0.2,
+		description = "The tip's damping: with Min Damping (the root's) it is blended down the chain by Damping Power, then clamped to 0-1 x the damping rate (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 0.1,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	secondDamping: FloatProperty(
 		name = "Second Damping",
-		description = "Reduces movement of nodes",#TODO Add description
+		description = "The tip's damping above Second Damping Speed (blended from Second Min Damping like the first pair) (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.05,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	secondDampingSpeed: FloatProperty(
 		name = "Second Damping Speed",
-		description = "Second Damping Speed",#TODO Add description
+		description = "The node speed (per step) from which the second damping applies; 0 turns the second damping off (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
 		)
 	minDamping: FloatProperty(
 		name = "Min Damping",
-		description = "Minimum amount of damping to be applied\nVersion 24 and above only",#TODO Add description
-		default = 0.2,
+		description = "The root's damping, not a floor: blended to Damping at the tip by Damping Power (t = node index / (count - 1)) (MH Wilds, read from the exe by Physics_Sim)\nVersion 24 and above",#TODO Add description
+		default = 0.1,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	secondMinDamping: FloatProperty(
 		name = "Second Min Damping",
-		description = "Minimum amount of damping to be applied\nVersion 24 and above only",#TODO Add description
-		default = 0.00,
+		description = "The root's second damping, blended to Second Damping by Second Damping Power (MH Wilds, read from the exe by Physics_Sim)\nVersion 24 and above",#TODO Add description
+		default = 0.05,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	dampingPow: FloatProperty(
 		name = "Damping Power",
-		description = "Damping Power\nVersion 24 and above only",#TODO Add description
+		description = "The exponent of the root-to-tip blend (t^power); 0 makes every node take Damping (Min Damping ignored), below 0 uses the exponent -1/power (MH Wilds, read from the exe by Physics_Sim)\nVersion 24 and above only",#TODO Add description
 		default = 1.00,
 		)
 	secondDampingPow: FloatProperty(
 		name = "Second Damping Power",
-		description = "Second Damping Power\nVersion 24 and above only",#TODO Add description
-		default = 0.00,
+		description = "The exponent of the second damping's root-to-tip blend; 0 ignores Second Min Damping (MH Wilds, read from the exe by Physics_Sim)\nVersion 24 and above only",#TODO Add description
+		default = 1.0,
 		)
 	collideMaxVelocity: FloatProperty(
 		name = "Collide Max Velocity",
@@ -1420,25 +1447,26 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		items=[ ("0", "WindDelayType_None", ""),
 				("1", "WindDelayType_Auto", ""),
 				("2", "WindDelayType_Manual", ""),
-			  ]
+			  ],
+		default = "1",
 		)
 	reduceSelfDistanceRate: FloatProperty(
 		name = "Reduce Self Distance Rate",
-		description = "Reduce Self Distance Rate",#TODO Add description
-		default = 0.00,
+		description = "The share of the owner's motion free nodes are carried along with (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 0.5,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	secondReduceDistanceRate: FloatProperty(
 		name = "Second Reduce Distance Rate",
-		description = "Second Reduce Distance Rate",#TODO Add description
-		default = 0.00,
+		description = "That share while the root moves faster than Second Reduce Distance Speed (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 0.5,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	secondReduceDistanceSpeed: FloatProperty(
 		name = "Second Reduce Distance Speed",
-		description = "Second Reduce Distance Speed",#TODO Add description
+		description = "The root speed (per step) above which Second Reduce Distance Rate is used (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
 		)
 	friction: FloatProperty(
@@ -1457,14 +1485,14 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	coefOfElasticity: FloatProperty(
 		name = "Coefficient Of Elasticity",
-		description = "Affects bounciness of spring force",#TODO Add description
+		description = "How softly segment lengths are restored, not the spring: stiffness = 1 - clamp(coef x elastic rate)^(rate x dt); 0 restores lengths fully, 1 not at all (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
 	coefOfExternalForces: FloatProperty(
 		name = "Coefficient Of External Forces",
-		description = "Coefficient Of External Forces",#TODO Add description
+		description = "MH Wilds does not read this field (no getter in the setting's slot map) (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
 		soft_min = 0.00,
 		soft_max = 1.00,
@@ -1478,7 +1506,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	angleLimitInteractionRatio: FloatProperty(
 		name = "Angle Limit Interaction Ratio",
-		description = "Angle Limit Interaction Ratio",#TODO Add description
+		description = "The game has a getter for it; the ported angle pass uses a fixed 0.3 parent share, so its effect is not confirmed (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.5,
 		soft_min = 0.00,
 		soft_max = 1.00,
@@ -1492,13 +1520,13 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 
 	groupDefaultAttr: IntProperty(
 		name="Group Default Attribute",
-		description="Controls how chain groups interact. Also affects whether nodes can collide",
-		default = 0,
+		description="Used only by groups with attribute 0x8 (Collision Default), and only its collision pass bits: 0x10 self, 0x20 the chain's own collisions, 0x40 virtual ground, 0x80 environment triangles, 0x100 group pass (FUN_14a5fd220), 0x10000 scene colliders (CLSP). Link collisions read 0x20 / 0x80 / 0x10000 of the Default Setting Index's setting. Other bits are ignored (MH Wilds, read from the exe by Physics_Sim)",
+		default = 65536,
 		)
 	windEffectCoef: FloatProperty(
 		name = "Wind Effect Coefficient",
-		description = "Affects how much stage wind affects chain. NOTE: Applies to chain even if it is not parented to wind settings",#TODO Add description
-		default = 0.00,
+		description = "Scales the chain's own Wind Settings. The stage (environment) wind uses Env Wind Effect Coefficient instead, on groups with attribute 0x8000 (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 0.5,
 		soft_min = 0.00,
 		soft_max = 1.00,
 		)
@@ -1522,8 +1550,8 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	envWindEffectCoef: FloatProperty(
 		name = "Env Wind Effect Coefficient",
-		description = "Capcom Example Values RE4: [0.0, 0.003000000026077032, 0.004999999888241291, 0.009999999776482582, 0.019999999552965164, 0.029999999329447746, 0.03500000014901161, 0.03999999910593033, 0.05000000074505806, 0.10000000149011612, 0.5]\nVersion 48 and above only",
-		default = 0.10,
+		description = "Scales the stage (environment) wind, for groups with attribute 0x8000 (Enable Env Wind) (MH Wilds, read from the exe by Physics_Sim). Vanilla collar strips use 1.0",
+		default = 0.25,
 		)
 	motionForce: FloatProperty(
 		name = "Motion Force",
@@ -1537,7 +1565,13 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		items=[ ("0", "WindDelayType_None", ""),
 				("1", "WindDelayType_Auto", ""),
 				("2", "WindDelayType_Manual", ""),
-			  ]
+			  ],
+		default = "1",
+		)
+	elasticLimit: FloatProperty(
+		name = "Elastic Limit",
+		description = "Settings +176 (MH Wilds; was written as Motion Force Calc Type): the stretch cap for segments whose Coefficient Of Elasticity leaves them soft (read from the exe by Physics_Sim). 0 in every vanilla file",
+		default = 0.0,
 		)
 	motionForceCalcType: EnumProperty(
 		name="Motion Force Calculation Type (chain2)",
@@ -1565,6 +1599,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 def getChainSettings(ChainSettingsData,targetObject,isChain2 = False):
 	#Done manually to be able to account for chain version differences eventually
 	targetObject.re_chain_chainsettings.id = ChainSettingsData.id
+	targetObject.re_chain_chainsettings.fileWindID = getattr(ChainSettingsData,"windID",0)
 	targetObject.re_chain_chainsettings.colliderFilterInfoPath = str(ChainSettingsData.colliderFilterInfoPath)
 	if not isChain2:
 		targetObject.re_chain_chainsettings.sprayParameterArc = ChainSettingsData.sprayParameterArc
@@ -1577,6 +1612,7 @@ def getChainSettings(ChainSettingsData,targetObject,isChain2 = False):
 		targetObject.re_chain_chainsettings.muzzleVelocity = (ChainSettingsData.muzzleVelocityX,ChainSettingsData.muzzleVelocityY,ChainSettingsData.muzzleVelocityZ)
 	else:
 		targetObject.re_chain_chainsettings.motionForceCalcType = str(ChainSettingsData.motionForceCalcType)
+		targetObject.re_chain_chainsettings.elasticLimit = getattr(ChainSettingsData,"elasticLimit",0.0)
 		targetObject.re_chain_chainsettings.unknQuaternion = (ChainSettingsData.subDataUnkn0,ChainSettingsData.subDataUnkn1,ChainSettingsData.subDataUnkn2,ChainSettingsData.subDataUnkn3)
 		targetObject.re_chain_chainsettings.unknPos = (ChainSettingsData.subDataUnkn4,ChainSettingsData.subDataUnkn5,ChainSettingsData.subDataUnkn6)
 		for subData in ChainSettingsData.subDataList:
@@ -1634,6 +1670,7 @@ def setChainSettingsData(ChainSettingsData,targetObject,isChain2 = False):
 		ChainSettingsData.shootingElasticLimitRate = targetObject.re_chain_chainsettings.shootingElasticLimitRate 
 	else:
 		ChainSettingsData.motionForceCalcType = int(targetObject.re_chain_chainsettings.motionForceCalcType)
+		ChainSettingsData.elasticLimit = targetObject.re_chain_chainsettings.elasticLimit
 		ChainSettingsData.subDataUnkn0 = targetObject.re_chain_chainsettings.unknQuaternion[0]
 		ChainSettingsData.subDataUnkn1 = targetObject.re_chain_chainsettings.unknQuaternion[1]
 		ChainSettingsData.subDataUnkn2 = targetObject.re_chain_chainsettings.unknQuaternion[2]
@@ -1694,13 +1731,13 @@ def setChainSettingsData(ChainSettingsData,targetObject,isChain2 = False):
 	if targetObject.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS":
 		ChainSettingsData.windID = targetObject.parent.re_chain_windsettings.id
 	else:
-		ChainSettingsData.windID = 0
+		ChainSettingsData.windID = targetObject.re_chain_chainsettings.fileWindID
 	
 class chainSubGroupPropertyGroup(bpy.types.PropertyGroup):
 
 	subGroupID: IntProperty(
 		name = "Sub Group ID",
-		description="",
+		description="The sub-group replaces the group's setting and node records when the chain's preset id equals this (MH Wilds, read from the exe by Physics_Sim)",
 		default = 1,
 		)
 	parentGroup: PointerProperty(
@@ -1712,26 +1749,29 @@ class chainSubGroupPropertyGroup(bpy.types.PropertyGroup):
 
 class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 
-	rotationOrder: EnumProperty(
-		name="Rotation Order",
-		description="Apply Data to attribute.",
-		items=[ ("0", "RotationOrder_XYZ", ""),
-				("1", "RotationOrder_YZX", ""),
-				("2", "RotationOrder_ZXY", ""),
-				("3", "RotationOrder_ZYX", ""),
-				("4", "RotationOrder_YXZ", ""),
-				("5", "RotationOrder_XZY", ""),
-			   ]
+	fileWindID: IntProperty(
+		name = "Wind ID (without a parent)",
+		description = "Written when this object is not parented to a wind settings object (otherwise that wind's ID is), and always for a group imported from a file (its own field, read by the game on groups without attribute 0x400): -1 is no wind. Imported from the file; the export used to write 0, which points a vanilla -1 at wind 0 (497 vanilla settings and 189 groups have -1)",
+		default = 0,
+		min = -1,
+		max = 127,
+		)
+	rotationOrder: IntProperty(
+		name="Exe Order",
+		description="chain2: the batch the group steps in (group+0x2a8); it never steps if this is above the header's Last Exe Order (MH Wilds, read from the exe by Physics_Sim). (Shown as Rotation Order before; chain v1 keeps that meaning.) Vanilla goes up to 6",
+		default = 0,
+		min = 0,
+		max = 255,
 		)
 	autoBlendCheckNodeNo: IntProperty(
 		name = "Auto Blend Check Node Number",
-		description="Auto Blend Check Node Number",#TODO Add description
+		description="Copied to group+0x1d0; its use is not traced (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0,
 		)
 	attrFlags: IntProperty(
 		name="Attribute Flags",
-		description="Controls how chain groups interact. Also affects whether nodes can collide",
-		default = 0,
+		description="0x2 angle limits, 0x4 scale from the joint, 0x8 take the collision passes from the setting's Group Default Attribute (the group's own 0x10-0x100 and 0x10000 are then ignored), 0x10 self, 0x20 the chain's own collisions, 0x40 virtual ground, 0x80 environment triangles, 0x100 group pass, 0x400 wind ID from the setting, 0x800 lengths from the pose, 0x1000 angle limit bounce (Hinge only), 0x2000 stretch both, 0x8000 stage wind, 0x10000 scene colliders (CLSP), 0x20000 an extra tail node, 0x80000 stretch both auto scale; 0x200 and 0x40000 have no reader found (MH Wilds, read from the exe by Physics_Sim)",
+		default = 99339,
 		)
 	collisionFilterFlags: IntProperty(
 		name="Collision Filter Flags",
@@ -1785,66 +1825,68 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 		)
 	dampingNoise0: FloatProperty(
 		name = "Damping Noise 0",
-		description = "Damping Noise 0\nVersion 35 and above only",#TODO Add description
+		description = "Each group draws one random value uniform in [Damping Noise 0, Damping Noise 1] and adds it to its damping, only when the prefab's EnabledNoise is set (MH Wilds, read from the exe by Physics_Sim)\nVersion 35 and above only",#TODO Add description
 		default = 0.00,
 		)
 	dampingNoise1: FloatProperty(
 		name = "Damping Noise 1",
-		description = "Damping Noise 1\nVersion 35 and above only",#TODO Add description
+		description = "The upper end of the damping noise range (see Damping Noise 0) (MH Wilds, read from the exe by Physics_Sim)\nVersion 35 and above only",#TODO Add description
 		default = 0.00,
 		)
 	endRotConstMax: FloatProperty(
 		name = "End Rotation Constant Max",
-		description = "End Rotation Constant Max\nVersion 35 and above only",#TODO Add description
-		default = 0.00,
+		description = "Copied raw to group+0x290; no reader found yet (MH Wilds, read from the exe by Physics_Sim). Vanilla uses 4 pi\nVersion 35 and above only",#TODO Add description
+		default = 12.566370964050293,
 		)
 	tagCount: IntProperty(
 		name = "Tag Count",
-		description="Tag Count\nVersion 35 and above only",#TODO Add description
+		description="Not read: the tag filter compares Tag 0-3 directly (MH Wilds, read from the exe by Physics_Sim)\nVersion 35 and above only",#TODO Add description
 		default = 0,
 		)
 	angleLimitDirectionMode: EnumProperty(
 		name="Angle Limit Direction Mode",
-		description="Apply Data to attribute.\nVersion 35 and above only",
+		description="Copied to group+0x273; Base Pose is the ported mode, what Motion Pose does is not known (MH Wilds, read from the exe by Physics_Sim)\nVersion 35 and above only",
 		items=[ ("0", "AngleLimitDirectionMode_BasePose", ""),
 				("1", "AngleLimitDirectionMode_MotionPose", ""),
 			  ]
 		)
 	colliderQualityLevel: IntProperty(
 		name = "Collider Quality Level",
-		description="Version 48 and above only",#TODO Add description
+		description="Copied to group+0x1d4; its use is not traced (MH Wilds, read from the exe by Physics_Sim)\nVersion 48 and above only",#TODO Add description
 		default = 0,
 		)
 	
 	clspFlags0: IntProperty(
 		name = "CLSP Flags A",
-		description="Bitflag that determines what CLSP Tag Groups to collide with. -1 on files that don't use CLSP.\nVersion 52 and above only",#TODO Add description
-		default = 0,
+		description="Bitflag (the low half of a 64-bit mask with CLSP Flags B) that determines what CLSP Tag Groups to collide with: a CLSP shape is gathered when its mask meets this one. -1 collides with every shape, 0 with none; it only matters with the group's scene collider pass on (attr 0x10000, or the setting's via 0x8). Read from the exe by Physics_Sim.\nVersion 52 and above only",
+		default = -1,
 		)
 	clspFlags1: IntProperty(
 		name = "CLSP Flags B",
-		description="Bitflag that determines what CLSP Tag Groups to collide with. -1 on files that don't use CLSP.\nVersion 52 and above only",#TODO Add description
-		default = 0,
+		description="Bitflag (the low half of a 64-bit mask with CLSP Flags B) that determines what CLSP Tag Groups to collide with: a CLSP shape is gathered when its mask meets this one. -1 collides with every shape, 0 with none; it only matters with the group's scene collider pass on (attr 0x10000, or the setting's via 0x8). Read from the exe by Physics_Sim.\nVersion 52 and above only",
+		default = -1,
 		)
 	
 	#Chain2
 	interpCount: IntProperty(
 		name = "Interpolation Count (chain2)",
-		description="For chain2 only",
+		description="chain2: every (count + 1)-th file node is simulated, the ones between are filled in at output by Node Interpolation Mode (MH Wilds, read from the exe by Physics_Sim)",
 		default = 0,
 		)
 	nodeInterpolationMode: EnumProperty(
 		name="Node Interpolation Mode (chain2)",
-		description="For chain2 only",
+		description="chain2: how the nodes Interpolation Count skips are filled in at output (MH Wilds, read from the exe by Physics_Sim). The only vanilla user has 3",
 		items=[ ("0", "NodeInterpolationMode_None", ""),
 				("1", "NodeInterpolationMode_Linear", ""),
 				("2", "NodeInterpolationMode_SplineLerp", ""),
 				("3", "NodeInterpolationMode_FastSpline", ""),
-			  ]
+			  ],
+		default = "3",
 		)
 def getChainGroup(ChainGroupData,targetObject,isChain2 = False):
 	#Done manually to be able to account for chain version differences eventually
-	targetObject.re_chain_chaingroup.rotationOrder = str(ChainGroupData.rotationOrder)
+	targetObject.re_chain_chaingroup.rotationOrder = ChainGroupData.rotationOrder
+	targetObject.re_chain_chaingroup.fileWindID = getattr(ChainGroupData,"windID",0)
 	targetObject.re_chain_chaingroup.autoBlendCheckNodeNo = ChainGroupData.autoBlendCheckNodeNo
 	targetObject.re_chain_chaingroup.attrFlags = ChainGroupData.attrFlags
 	if not isChain2:
@@ -1872,7 +1914,7 @@ def getChainGroup(ChainGroupData,targetObject,isChain2 = False):
 	
 	
 def setChainGroupData(ChainGroupData,targetObject,isChain2 = False):
-	ChainGroupData.rotationOrder = int(targetObject.re_chain_chaingroup.rotationOrder)
+	ChainGroupData.rotationOrder = targetObject.re_chain_chaingroup.rotationOrder
 	ChainGroupData.autoBlendCheckNodeNo = targetObject.re_chain_chaingroup.autoBlendCheckNodeNo 
 	ChainGroupData.attrFlags = targetObject.re_chain_chaingroup.attrFlags
 	if not isChain2:
@@ -1903,71 +1945,73 @@ def setChainGroupData(ChainGroupData,targetObject,isChain2 = False):
 		ChainGroupData.interpCount = targetObject.re_chain_chaingroup.interpCount 
 		ChainGroupData.nodeInterpolationMode = int(targetObject.re_chain_chaingroup.nodeInterpolationMode)
 		
-	if targetObject.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS":
+	if targetObject.get("windIDFromFile",False):#imported: its own +0x0F (the game reads it on groups without attribute 0x400)
+		ChainGroupData.windID = targetObject.re_chain_chaingroup.fileWindID
+	elif targetObject.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS":
 		ChainGroupData.windID = targetObject.parent.re_chain_windsettings.id
 		
 	elif targetObject.parent.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS":
 		ChainGroupData.windID = targetObject.parent.parent.re_chain_windsettings.id
 		
 	else:
-		ChainGroupData.windID = 0
+		ChainGroupData.windID = targetObject.re_chain_chaingroup.fileWindID
 
 
 class chainNodePropertyGroup(bpy.types.PropertyGroup):
 	angleLimitRad: FloatProperty(
-		name = "Angle Limit Radius",
-		description = "The amount the node is allowed to rotate from it's angle limit direction",
+		name = "Angle Limit (full cone angle)",
+		description = "The cone's FULL opening angle: the node may swing half of it off the limit direction (20 degrees = +-10). 0, or more than 360 degrees, turns the limit off (MH Wilds, read from the exe by Physics_Sim)",
 		default = 0.0,
 		soft_min=0.0,
-		soft_max=180.0,
+		soft_max=6.283185307179586,
         subtype = "ANGLE",
 		update = update_AngleLimitRad
 		)
 	angleLimitDistance: FloatProperty(
 		name = "Angle Limit Distance",
-		description = "Angle Limit Distance",#TODO Add description
+		description = "Used by Cone Box (the slab |z| <= this x length) and Oval (frame Z squeezed by this; 0 locks Z) only (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
 		)
 	angleLimitRestitution: FloatProperty(
 		name = "Angle Limit Restitution",
-		description = "Angle Limit Restitution",#TODO Add description
+		description = "The bounce off the limit; read only for Hinge with group attribute 0x1000 (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
 		default = 0.00,
 		)
 	angleLimitRestituteStopSpeed: FloatProperty(
 		name = "Angle Limit Restitute Stop Speed",
-		description = "Angle Limit Restitute Stop Speed",#TODO Add description
-		default = 0.00,
+		description = "Below this speed the bounce stops; read only for Hinge with group attribute 0x1000 (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 0.1,
 		)
 	collisionRadius: FloatProperty(
 		name = "Collision Radius",
-		description = "Collision Radius",#TODO Add description
-		default = 0.00,
+		description = "Times the group's length scale; 0 (or below FLT_EPSILON) means no scene collision for the node (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 0.03,
 		update=update_NodeRadius,
 		step = .1,
 		soft_min = 0.00
 		)
 	collisionFilterFlags: IntProperty(
 		name="Collision Filter Flags",
-		description="Controls how collisions will interact with surroundings",
+		description="Filters self collision only: nodes at least two apart collide when these AND to non-zero (MH Wilds, read from the exe by Physics_Sim)",
 		default = -1,
 		)
 	capsuleStretchRate0: FloatProperty(
 		name = "Capsule Stretch Rate 0",
-		description = "Capsule Stretch Rate 0",#TODO Add description
-		default = 0.00,
+		description = "The capsule's ends are next + rate0 x (node - next) and node + rate1 x (next - node); it collides only if rate0 + rate1 > 1, so 0 / 0 never collides (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 1.0,
 		soft_min=0.000,
 		soft_max=1.000
 		)
 	capsuleStretchRate1: FloatProperty(
 		name = "Capsule Stretch Rate 1",
-		description = "Capsule Stretch Rate 1",#TODO Add description
-		default = 0.00,
+		description = "See Capsule Stretch Rate 0: the capsule collides only if the two rates sum above 1 (MH Wilds, read from the exe by Physics_Sim)",#TODO Add description
+		default = 1.0,
 		soft_min=0.000,
 		soft_max=1.000
 		)
 	attrFlags: IntProperty(
 		name="Attribute Flags",
-		description="Controls how chain groups interact. Also affects whether nodes can collide",
+		description="0x2 on the group's first node: the game adds a pinned extra root node and frees node 0 (shown as Jiggle before); the angle and length passes give attribute-0x2 nodes no correction share. 0x1 is not known (MH Wilds, read from the exe by Physics_Sim)",
 		default = 0,
 		)
 	windCoef: FloatProperty(
@@ -1982,22 +2026,24 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		description="Apply Data to attribute.",
 		items=[ ("0", "AngleMode_Free", "Any Direction"),
 				("1", "AngleMode_LimitCone", "Limit Node Direction to Cone"),
-				("2", "AngleMode_LimitHinge", "Hinge on Z Axis"),
-				("3", "AngleMode_LimitConeBox", ""),
-				("4", "AngleMode_LimitOval", "Y Axis Compressed"),
-				("5", "AngleMode_LimitElliptic", "Z Axis Compressed"),
+				("2", "AngleMode_LimitHinge", "Swings in the frame's X-Y plane only (turns about Z)"),
+				("3", "AngleMode_LimitConeBox", "The cone cut by the slab |z| <= Angle Limit Distance x length"),
+				("4", "AngleMode_LimitOval", "Frame Z squeezed by Angle Limit Distance (0 locks Z); was described as Y compressed"),
+				("5", "AngleMode_LimitElliptic", "Runs the round cone, the same as Limit Cone; was described as Z compressed"),
 			   ],
-		update = update_AngleLimitMode
+		update = update_AngleLimitMode,
+		default = "1",
 		)
 		
 	collisionShape: EnumProperty(
 		name="Collision Shape",
 		description="Apply Data to attribute.",
-		items=[ ("0", "ChainNodeCollisionShape_None", ""),
-				("1", "ChainNodeCollisionShape_Sphere", ""),
-				("2", "ChainNodeCollisionShape_Capsule", ""),
-				("3", "ChainNodeCollisionShape_StretchCapsule", ""),
-			   ]
+		items=[ ("0", "ChainNodeCollisionShape_None", "No scene collision"),
+				("1", "ChainNodeCollisionShape_Sphere", "A sphere on the node (free nodes only)"),
+				("2", "ChainNodeCollisionShape_Capsule", "A capsule to the next node, ends set by the Capsule Stretch Rates; ignored on the last node"),
+				("3", "ChainNodeCollisionShape_StretchCapsule", "No scene collision in MH Wilds"),
+			   ],
+		default = "1",
 		)
 	attachType: IntProperty(
 		name = "Attach Type",
@@ -2017,19 +2063,19 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 	
 	constraintJntName: StringProperty(
 		name="Constraint Joint Name",
-		description="Constraint joint, if the bone is not on the armature when the chain is imported, this will be an integer hash value",
+		description="When this joint resolves, the game pins the node to it (MH Wilds, read from the exe by Physics_Sim)",
 		default = "",
 		)
 	
 	#chain2
 	jointHash: StringProperty(
 		name = "Joint Name Hash (chain2)",
-		description="The default value is a hash of a string that seems to mean None.\nIf a string is entered into this field, it will be hashed upon export",
+		description="Read only when the header's Free Link Joint is set; otherwise the joints come from walking up from the terminate node (MH Wilds, read from the exe by Physics_Sim)",
 		default = "2180083513",
 		)
 	basePos: FloatVectorProperty(
 		name = "Base Position (chain2)",
-		description="For chain2 files only",#TODO Add description
+		description="Overwritten by the game for every node that gets a joint (MH Wilds, read from the exe by Physics_Sim)\nFor chain2 files only",#TODO Add description
 		default = (0.0,0.0,0.0),
 		subtype = "XYZ",
 		)
@@ -2284,7 +2330,7 @@ class chainCollisionPropertyGroup(bpy.types.PropertyGroup):
 		)
 	chainCollisionShape: EnumProperty(
 		name="Chain Collision Shape",
-		description="Apply Data to attribute.",
+		description="The chain's own (model) collision shapes. Their MH Wilds runtime is not ported or verified; this list is NOT the CLSP shape kinds (0 sphere, 1 capsule, 2 box, 3 tapered capsule, 4 plane) (MH Wilds, read from the exe by Physics_Sim)",
 		items=[ ("0", "ChainCollisionShape_None", ""),
 				("1", "ChainCollisionShape_Sphere", ""),
 				("2", "ChainCollisionShape_Capsule", ""),

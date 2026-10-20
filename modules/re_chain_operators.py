@@ -1793,80 +1793,80 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	AngleLimit : bpy.props.BoolProperty(
 		name="Angle Limit",
-		description="",
+		description="0x2: the angle limits (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	ExtraNode : bpy.props.BoolProperty(
-		name="Extra Node",
-		description="",
+		name="Extra Tail Node",
+		description="0x20000: an extra node after the tip (the last runtime node gets no joint). The extra ROOT node is node attribute 0x2 (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionDefault : bpy.props.BoolProperty(
 		name="Collision Default",
-		description="",
+		description="0x8: the collision passes come from the setting's Group Default Attribute; the group's own pass bits (Self ... Group, Character) are then ignored (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionSelf : bpy.props.BoolProperty(
 		name="Collision Self",
-		description="",
+		description="0x10: self collision pass (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionModel : bpy.props.BoolProperty(
 		name="Collision Model",
-		description="",
+		description="0x20: the chain's own (model) collisions pass (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionVGround : bpy.props.BoolProperty(
 		name="Collision VGround",
-		description="",
+		description="0x40: virtual ground pass (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionCollider : bpy.props.BoolProperty(
-		name="Collision Collider",
-		description="",
+		name="Collision Environment (Collider)",
+		description="0x80: the physics world's triangles pass (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionGroup : bpy.props.BoolProperty(
 		name="Collision Group",
-		description="",
+		description="0x100: group pass (FUN_14a5fd220) (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	EnablePartBlend : bpy.props.BoolProperty(
 		name="Enable Part Blend",
-		description="",
+		description="0x200: no reader found in MH Wilds (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	WindDefault : bpy.props.BoolProperty(
 		name="Wind Default",
-		description="",
+		description="0x400: the wind ID comes from the setting (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	TransAnimation : bpy.props.BoolProperty(
 		name="Trans Animation",
-		description="",
+		description="0x800: segment lengths from the pose (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	AngleLimitRestitution : bpy.props.BoolProperty(
 		name="Angle Limit Restitution",
-		description="",
+		description="0x1000: the angle limit bounce (Restitution / Stop Speed); Hinge only (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	StretchBoth : bpy.props.BoolProperty(
 		name="Stretch Both",
-		description="",
+		description="0x2000 (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	EndRotConstraint : bpy.props.BoolProperty(
 		name="End Rot Constraint",
-		description="",
+		description="0x4000 (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	EnableEnvWind : bpy.props.BoolProperty(
 		name="Enable Env Wind",
-		description="",
+		description="0x8000: the stage (environment) wind, scaled by Env Wind Effect Coefficient (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	ScaleAnimation : bpy.props.BoolProperty(
 		name="Scale Animation",
-		description="",
+		description="0x4: scale from the joint (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	CollisionCharacter : bpy.props.BoolProperty(
-		name="Collision Character",
-		description="",
+		name="Collision Scene Colliders (Character)",
+		description="0x10000: the scene colliders (CLSP) pass (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	#chain2
 	UseBitFlag : bpy.props.BoolProperty(
 		name="Use Bit Flag",
-		description="",
+		description="0x40000: no reader found in MH Wilds (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	StretchBothAutoScale : bpy.props.BoolProperty(
 		name="Stretch Both Auto Scale",
-		description="",
+		description="0x80000 (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	
 	def draw(self,context):
@@ -1964,11 +1964,11 @@ class WM_OT_SetNodeAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	PartMotionBlend : bpy.props.BoolProperty(
 		name="Part Motion Blend",
-		description="",
+		description="0x1: not known in MH Wilds (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	Jiggle : bpy.props.BoolProperty(
-		name="Jiggle",
-		description="",
+		name="Extra Root Node",
+		description="0x2 on the group's first node: a pinned extra root node is added and node 0 is freed (shown as Jiggle before) (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	
 	def draw(self,context):
@@ -2036,23 +2036,23 @@ class WM_OT_SetSettingAttrFlags(Operator):
 	bl_options = {'UNDO','INTERNAL'}
 	Default : bpy.props.BoolProperty(
 		name="Default",
-		description="",
+		description="0x1: groups whose setting ID matches no setting fall back to this one (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	VirtualGroundRoot : bpy.props.BoolProperty(
 		name="Virtual Ground Root",
-		description="",
+		description="0x2: the low bit of the 2-bit Virtual Ground Type (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	VirtualGroundTarget : bpy.props.BoolProperty(
 		name="Virtual Ground Target",
-		description="",
+		description="0x4: the high bit of the 2-bit Virtual Ground Type (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	IgnoreSameGroupCollision : bpy.props.BoolProperty(
-		name="Ignore Same Group Collision",
-		description="",
+		name="Ignore Same Setting Group Collision",
+		description="0x8: groups of the same setting do not collide with each other (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	UseReduceDistanceCurve : bpy.props.BoolProperty(
 		name="Use Reduce Distance Curve",
-		description="",
+		description="0x10: follow the owner by the speed curve (MH Wilds, read from the exe by Physics_Sim)",
 		default = False)
 	"""
 	VirtualGroundMask : bpy.props.BoolProperty(

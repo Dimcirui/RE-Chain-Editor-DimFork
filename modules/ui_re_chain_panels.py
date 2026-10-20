@@ -219,6 +219,9 @@ class OBJECT_PT_ChainHeaderPanel(Panel):
 			col2.prop(re_chain_header, "legacyVersion")
 		else:
 			col2.prop(re_chain_header, "highFPSCalculateMode")
+			col2.prop(re_chain_header, "restartIterationsAlt")
+			col2.prop(re_chain_header, "freeLinkJoint")
+			col2.prop(re_chain_header, "taperedCollideMethod")
 			col2.prop(re_chain_header, "wilds_unkn1")
 			col2.prop(re_chain_header, "wilds_unkn2")
 		col2.prop(re_chain_header, "collisionFilterHit0")
@@ -369,8 +372,11 @@ class OBJECT_PT_ChainSettingsPanel(Panel):
 		
 			
 		col2.prop(re_chain_chainsettings, "motionForce")
+		if object.parent == None or object.parent.get("TYPE",None) != "RE_CHAIN_WINDSETTINGS":
+			col2.prop(re_chain_chainsettings, "fileWindID")
 		if isChain2:
 			col2.prop(re_chain_chainsettings, "motionForceCalcType")
+			col2.prop(re_chain_chainsettings, "elasticLimit")
 		row = col2.row()
 		row.prop(re_chain_chainsettings, "groupDefaultAttr")
 		row.operator("re_chain.set_attr_flags",icon='DOWNARROW_HLT', text="")
@@ -440,6 +446,8 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 		col2.use_property_split = True
 		
 		col2.prop(re_chain_chaingroup, "rotationOrder")
+		if object.get("windIDFromFile",False) or object.parent == None or object.parent.parent == None or object.parent.parent.get("TYPE",None) != "RE_CHAIN_WINDSETTINGS":
+			col2.prop(re_chain_chaingroup, "fileWindID")
 		row = col2.row()
 		row.prop(re_chain_chaingroup, "attrFlags")
 		row.operator("re_chain.set_attr_flags",icon='DOWNARROW_HLT', text="")
