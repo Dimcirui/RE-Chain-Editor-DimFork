@@ -1489,6 +1489,9 @@ class WM_OT_ApplyAngleLimitRamp(Operator):
 	bl_idname = "re_chain.apply_angle_limit_ramp"
 	bl_context = "objectmode"
 	bl_options = {'UNDO'}
+	reverse : bpy.props.BoolProperty(name = "Reverse",
+										 description = "Ramp from the tip toward the root: the last node gets the first step and the angle limit grows toward the first node",
+										 default = False)
 	maxAngleLimit : bpy.props.FloatProperty(name = "Max Angle Limit",
 										 description = "The maximum angle limit radius after the max iteration number is reached. For example, if the max angle limit is 60 and the max iteration is 4, the first node angle limit will be 15, the second will be 30 and so on. Once the max iteration is reached, all nodes after that will be the max angle limit value",
 										 default = 1.047198,#60 degrees
@@ -1521,7 +1524,7 @@ class WM_OT_ApplyAngleLimitRamp(Operator):
 		if chainGroupList != []:
 			angleLimitStep = self.maxAngleLimit / self.maxIteration
 			for chainGroup in chainGroupList:
-				for nodeIndex, chainNode in enumerate(chainGroup):
+				for nodeIndex, chainNode in enumerate(reversed(chainGroup) if self.reverse else chainGroup):
 					if nodeIndex + 1 < self.maxIteration:
 						chainNode.re_chain_chainnode.angleLimitRad = angleLimitStep * (nodeIndex + 1)
 					else:
