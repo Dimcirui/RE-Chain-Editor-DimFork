@@ -980,16 +980,7 @@ def importChainFile(filepath,options,isChain2 = False):
 					endObj = child
 					break
 		chainLinkObj.show_in_front = True
-		modifier = chainLinkObj.modifiers.new(name="REChainGeometryNodes", type='NODES')
-		nodeGroup = getChainLinkGeoNodeTree()
-		if modifier.node_group != None and modifier.node_group.name in bpy.data.node_groups:
-			bpy.data.node_groups.remove(modifier.node_group)
-		modifier.node_group = nodeGroup
-		
-		#if startObj != None and endObj != None:
-			#modifier["Input_0"] = startObj
-			#modifier["Input_1"] = endObj
-		#Force update
+		#Force update (draws the link's pairs, see updateLinkDrawing)
 		chainLinkObj.re_chain_chainlink.chainGroupAObject = chainLinkObj.re_chain_chainlink.chainGroupAObject
 		chainLinkObj.re_chain_chainlink.chainGroupBObject = chainLinkObj.re_chain_chainlink.chainGroupBObject
 		
