@@ -192,6 +192,20 @@ def nodeCapsuleObject(nodeObj):
 		return capsuleObj
 	return None
 
+def nodeCapsuleCollection(nodeObj):
+	"""The collection the node capsule drawings go in, a child of the node's chain collection (like Chain Links),
+	so they do not crowd the chain's own objects. None when the node is in no collection."""
+	from .blender_re_chain import getCollection
+	parent = nodeObj.users_collection[0] if nodeObj.users_collection else None
+	if parent == None or parent.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION":
+		return parent
+	for child in parent.children:
+		if child.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION":
+			return child
+	collection = getCollection(f"Node Capsules - {parent.name}",parent,makeNew = True)
+	collection["TYPE"] = "RE_CHAIN_NODE_CAPSULE_COLLECTION"
+	return collection
+
 def updateNodeCapsule(nodeObj):
 	"""Create, refresh or remove the capsule drawing of a Capsule node. The game uses no capsule on the last node,
 	and collides with none when the two stretch rates add up to 1 or less: then nothing is drawn.
@@ -208,8 +222,8 @@ def updateNodeCapsule(nodeObj):
 			bpy.data.objects.remove(capsuleObj)
 			del nodeObj["capsuleObject"]
 		return None
+	collection = nodeCapsuleCollection(nodeObj)
 	if capsuleObj == None:
-		collection = nodeObj.users_collection[0] if nodeObj.users_collection else None
 		capsuleObj = createCurveEmpty(nodeObj.name + " CAPSULE",[("TYPE","RE_CHAIN_NODE_CAPSULE")],None,collection)
 		capsuleObj["chainNode"] = nodeObj
 		nodeObj["capsuleObject"] = capsuleObj
@@ -220,6 +234,12 @@ def updateNodeCapsule(nodeObj):
 			capsuleObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawCollisionsThroughObjects
 		except Exception:
 			pass
+	#Drawings made before the capsule collection, or before the wireframe, move over on a redraw
+	if collection != None and collection not in capsuleObj.users_collection:
+		for oldCollection in list(capsuleObj.users_collection):
+			oldCollection.objects.unlink(capsuleObj)
+		collection.objects.link(capsuleObj)
+	capsuleObj.display_type = 'WIRE'
 	modifier = capsuleObj.modifiers["REChainGeometryNodes"]
 	nodeGroup = getNodeCapsuleGeoNodeTree()
 	if modifier.node_group != nodeGroup:

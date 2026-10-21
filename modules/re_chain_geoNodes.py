@@ -1,5 +1,6 @@
 #Author: NSA Cloud
 import bpy
+from math import sin,cos,pi
 
 CURVE_RADIUS = 1.0
 
@@ -742,8 +743,12 @@ def buildLinkPairsGeoNodeTree(node_group, pairs):
 def getNodeCapsuleGeoNodeTree():
 	"""A Capsule node's collision capsule: from the node toward the next node, its ends pulled in by the stretch
 	rates (next + rate0 x (node - next) and node + rate1 x (next - node)). Positions are taken relative to the
-	drawing object, so it draws right whatever that object's transform."""
-	TREENAME = "ChainNodeCapsuleGeoNodeTreeV1"
+	drawing object, so it draws right whatever that object's transform.
+
+	It is shown as a wireframe (Sphere nodes are wire spheres, collisions are solid), so it is one mesh: a UV sphere
+	cut at its equator and pulled apart along the axis, the meridians running straight down the tube."""
+	TREENAME = "ChainNodeCapsuleGeoNodeTreeV2"
+	RINGS = 9#Odd: the two middle rings bound the tube
 	if TREENAME in bpy.data.node_groups:
 		return bpy.data.node_groups[TREENAME]
 	node_group = bpy.data.node_groups.new(type="GeometryNodeTree", name=TREENAME)
@@ -778,29 +783,80 @@ def getNodeCapsuleGeoNodeTree():
 		return add.outputs["Vector"]
 	end0 = lerpEnd(nextInfo.outputs["Location"],nodeInfo.outputs["Location"],inNode.outputs["Rate 0"])
 	end1 = lerpEnd(nodeInfo.outputs["Location"],nextInfo.outputs["Location"],inNode.outputs["Rate 1"])
-	lineNode = nodes.new('GeometryNodeCurvePrimitiveLine')
-	links.new(end0,lineNode.inputs["Start"])
-	links.new(end1,lineNode.inputs["End"])
-	circleNode = nodes.new('GeometryNodeCurvePrimitiveCircle')
-	circleNode.inputs["Resolution"].default_value = 16
-	links.new(inNode.outputs["Radius"],circleNode.inputs["Radius"])
-	tubeNode = nodes.new('GeometryNodeCurveToMesh')
-	links.new(lineNode.outputs["Curve"],tubeNode.inputs["Curve"])
-	links.new(circleNode.outputs["Curve"],tubeNode.inputs["Profile Curve"])
-	joinNode = nodes.new('GeometryNodeJoinGeometry')
-	links.new(tubeNode.outputs["Mesh"],joinNode.inputs["Geometry"])
-	for end in (end0,end1):
-		sphereNode = nodes.new('GeometryNodeMeshUVSphere')
-		sphereNode.inputs["Segments"].default_value = 16
-		sphereNode.inputs["Rings"].default_value = 8
-		links.new(inNode.outputs["Radius"],sphereNode.inputs["Radius"])
-		moveNode = nodes.new('GeometryNodeTransform')
-		links.new(sphereNode.outputs["Mesh"],moveNode.inputs["Geometry"])
-		links.new(end,moveNode.inputs["Translation"])
-		links.new(moveNode.outputs["Geometry"],joinNode.inputs["Geometry"])
+	axisNode = nodes.new('ShaderNodeVectorMath')
+	axisNode.operation = "SUBTRACT"
+	links.new(end1,axisNode.inputs[0])
+	links.new(end0,axisNode.inputs[1])
+	lengthNode = nodes.new('ShaderNodeVectorMath')
+	lengthNode.operation = "LENGTH"
+	links.new(axisNode.outputs["Vector"],lengthNode.inputs[0])
+	midNode = nodes.new('ShaderNodeVectorMath')
+	midNode.operation = "MULTIPLY_ADD"
+	links.new(axisNode.outputs["Vector"],midNode.inputs[0])
+	midNode.inputs[1].default_value = (0.5,0.5,0.5)
+	links.new(end0,midNode.inputs[2])
+	sphereNode = nodes.new('GeometryNodeMeshUVSphere')
+	sphereNode.inputs["Segments"].default_value = 12
+	sphereNode.inputs["Rings"].default_value = RINGS
+	links.new(inNode.outputs["Radius"],sphereNode.inputs["Radius"])
+	positionNode = nodes.new('GeometryNodeInputPosition')
+	splitNode = nodes.new('ShaderNodeSeparateXYZ')
+	links.new(positionNode.outputs["Position"],splitNode.inputs["Vector"])
+	#Each half moves half the length out along Z
+	signNode = nodes.new('ShaderNodeMath')
+	signNode.operation = "SIGN"
+	links.new(splitNode.outputs["Z"],signNode.inputs[0])
+	halfNode = nodes.new('ShaderNodeMath')
+	halfNode.operation = "MULTIPLY"
+	links.new(lengthNode.outputs["Value"],halfNode.inputs[0])
+	halfNode.inputs[1].default_value = 0.5
+	stretchNode = nodes.new('ShaderNodeMath')
+	stretchNode.operation = "MULTIPLY"
+	links.new(signNode.outputs["Value"],stretchNode.inputs[0])
+	links.new(halfNode.outputs["Value"],stretchNode.inputs[1])
+	offsetNode = nodes.new('ShaderNodeCombineXYZ')
+	links.new(stretchNode.outputs["Value"],offsetNode.inputs["Z"])
+	stretchedNode = nodes.new('ShaderNodeVectorMath')
+	stretchedNode.operation = "ADD"
+	links.new(positionNode.outputs["Position"],stretchedNode.inputs[0])
+	links.new(offsetNode.outputs["Vector"],stretchedNode.inputs[1])
+	#The two middle rings sit at latitude +-pi/(2 x RINGS): put them on the tube's ends, at the full radius
+	absNode = nodes.new('ShaderNodeMath')
+	absNode.operation = "ABSOLUTE"
+	links.new(splitNode.outputs["Z"],absNode.inputs[0])
+	thresholdNode = nodes.new('ShaderNodeMath')
+	thresholdNode.operation = "MULTIPLY"
+	links.new(inNode.outputs["Radius"],thresholdNode.inputs[0])
+	thresholdNode.inputs[1].default_value = sin(pi / RINGS)
+	middleNode = nodes.new('ShaderNodeMath')
+	middleNode.operation = "LESS_THAN"
+	links.new(absNode.outputs["Value"],middleNode.inputs[0])
+	links.new(thresholdNode.outputs["Value"],middleNode.inputs[1])
+	k = 1.0 / cos(pi / (2 * RINGS))
+	ringNode = nodes.new('ShaderNodeVectorMath')
+	ringNode.operation = "MULTIPLY_ADD"
+	links.new(positionNode.outputs["Position"],ringNode.inputs[0])
+	ringNode.inputs[1].default_value = (k,k,0.0)
+	links.new(offsetNode.outputs["Vector"],ringNode.inputs[2])
+	pickNode = nodes.new('GeometryNodeSwitch')
+	pickNode.input_type = 'VECTOR'
+	links.new(middleNode.outputs["Value"],pickNode.inputs["Switch"])
+	links.new(stretchedNode.outputs["Vector"],pickNode.inputs["False"])
+	links.new(ringNode.outputs["Vector"],pickNode.inputs["True"])
+	setStretchNode = nodes.new('GeometryNodeSetPosition')
+	links.new(sphereNode.outputs["Mesh"],setStretchNode.inputs["Geometry"])
+	links.new(pickNode.outputs[0],setStretchNode.inputs["Position"])
+	#Z onto the axis, centred between the ends
+	alignNode = nodes.new('FunctionNodeAlignRotationToVector' if hasattr(bpy.types,"FunctionNodeAlignRotationToVector") else 'FunctionNodeAlignEulerToVector')
+	alignNode.axis = 'Z'
+	links.new(axisNode.outputs["Vector"],alignNode.inputs["Vector"])
+	moveNode = nodes.new('GeometryNodeTransform')
+	links.new(setStretchNode.outputs["Geometry"],moveNode.inputs["Geometry"])
+	links.new(alignNode.outputs["Rotation"],moveNode.inputs["Rotation"])
+	links.new(midNode.outputs["Vector"],moveNode.inputs["Translation"])
 	materialNode = nodes.new('GeometryNodeSetMaterial')
 	materialNode.inputs["Material"].default_value = getCollisionMat()
-	links.new(joinNode.outputs["Geometry"],materialNode.inputs["Geometry"])
+	links.new(moveNode.outputs["Geometry"],materialNode.inputs["Geometry"])
 	#A radius of 0 (no collision) draws nothing
 	compareNode = nodes.new('FunctionNodeCompare')
 	compareNode.data_type = 'FLOAT'
