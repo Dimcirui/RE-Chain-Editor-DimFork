@@ -59,7 +59,7 @@ def checkWindSettingsIDUsage(windSettingsID):
 def createChainCollection(collectionName,parentCollection = None):
 	collection = bpy.data.collections.new(collectionName)
 	collection.color_tag = "COLOR_02"
-	collection["~TYPE"] = "RE_CHAIN_COLLECTION"
+	collection["~TYPE"] = "RE_CLSP_COLLECTION"
 	if parentCollection != None:
 		parentCollection.children.link(collection)
 	else:
@@ -403,24 +403,23 @@ def importCLSPFile(filepath,options):
 
 
 	#CHAIN COLLISION IMPORT
-	if len(clspFile.clspEntryList) > 0:
-		parentCollection = None
-		if len(armature.users_collection) > 0 and armature.users_collection[0].get("~TYPE") == "RE_MESH_COLLECTION":
-			for collection in bpy.data.collections:
-				if armature.users_collection[0].name in collection.children:
-					parentCollection = collection
-					break
-		collisionCollection = getCollection(clspFileName,parentCollection,makeNew = True)
-		collisionCollection.color_tag = "COLOR_02"
-		collisionCollection["~TYPE"] = "RE_CLSP_COLLECTION"
-		try:
-			split = splitNativesPath(filepath)
-			if split != None:
-				assetPath = os.path.splitext(split[1])[0].replace(os.sep,"/")
-				collisionCollection["~ASSETPATH"] = assetPath#Used to determine where to export automatically
-		except:
-			print("Failed to set asset path from file path, file is likely not in a natives folder.")
-		bpy.context.scene.re_chain_toolpanel.chainCollection = collisionCollection
+	parentCollection = None
+	if len(armature.users_collection) > 0 and armature.users_collection[0].get("~TYPE") == "RE_MESH_COLLECTION":
+		for collection in bpy.data.collections:
+			if armature.users_collection[0].name in collection.children:
+				parentCollection = collection
+				break
+	collisionCollection = getCollection(clspFileName,parentCollection,makeNew = True)
+	collisionCollection.color_tag = "COLOR_02"
+	collisionCollection["~TYPE"] = "RE_CLSP_COLLECTION"
+	try:
+		split = splitNativesPath(filepath)
+		if split != None:
+			assetPath = os.path.splitext(split[1])[0].replace(os.sep,"/")
+			collisionCollection["~ASSETPATH"] = assetPath#Used to determine where to export automatically
+	except:
+		print("Failed to set asset path from file path, file is likely not in a natives folder.")
+	bpy.context.scene.re_chain_toolpanel.chainCollection = collisionCollection
 	singleObjectColList = ["SPHERE","OBB","PLANE","LINESPHERE","LERPSPHERE"]
 	
 	enumItemDict ={0:"SPHERE",1:"CAPSULE",2:"BOX",3:"TCAPSULE",4:"PLANE"}

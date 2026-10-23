@@ -86,7 +86,7 @@ def checkWindSettingsIDUsage(windSettingsID):
 def createChainCollection(collectionName,parentCollection = None):
 	collection = bpy.data.collections.new(collectionName)
 	collection.color_tag = "COLOR_02"
-	collection["~TYPE"] = "RE_CHAIN_COLLECTION"
+	collection["~TYPE"] = "RE_CLSP_COLLECTION" if collectionName.endswith(".clsp") else "RE_CHAIN_COLLECTION"
 	if parentCollection != None:
 		parentCollection.children.link(collection)
 	else:
