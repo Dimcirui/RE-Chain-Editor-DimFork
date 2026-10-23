@@ -6,7 +6,7 @@ from math import radians
 
 from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath
 from .file_re_chain import readREChain,writeREChain
-from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA
+from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
@@ -1067,7 +1067,25 @@ def importChainFile(filepath,options,isChain2 = False):
 	return True
 def chainErrorCheck(chainCollectionName):
 	print("\nChecking for problems with chain structure...")
-	
+	chainCollection = bpy.data.collections.get(chainCollectionName)
+	if chainCollection != None:
+		dedupeSettingsIDs(chainCollection.all_objects)
+	errorList = chainStructureErrors(chainCollection)
+	if errorList == []:
+		print("No problems found.")
+		syncCollisionOffsets()
+		return True
+	else:
+		errorString = ""
+		for error in errorList:
+			errorString += textColors.FAIL +"ERROR: " + error + textColors.ENDC +"\n"
+		showMessageBox("Chain structure contains errors and cannot export. Check Window > Toggle System Console for details.",title = "Export Error", icon = "ERROR")
+		print(errorString)
+		print(textColors.FAIL + "__________________________________\nChain export failed."+textColors.ENDC)
+		return False
+
+def chainStructureErrors(chainCollection,warn = raiseWarning):
+	#Problems that stop the chain from exporting, as a list of messages; reads the scene without changing it
 	#Check that there is chain data collection
 	#Check that there is only one header
 	#Check that all nodes have one frame
@@ -1076,12 +1094,12 @@ def chainErrorCheck(chainCollectionName):
 	#Check that all chain objects are parented to the header
 	#Check that parenting structure is valid
 	#Check that all nodes and collision objects have valid child of constraints
-	#Check for duplicate chain and wind setting ids
+	#Duplicate chain and wind setting ids are fixed by dedupeSettingsIDs
 	#TODO
 	#Check that chain links are valid
 	errorList = []
-	if bpy.data.collections.get(chainCollectionName) != None:
-		objList = bpy.data.collections[chainCollectionName].all_objects
+	if chainCollection != None:
+		objList = chainCollection.all_objects
 	else:
 		errorList.append("Chain objects must be contained in a collection.")
 		objList = []
@@ -1146,13 +1164,6 @@ def chainErrorCheck(chainCollectionName):
 			else:
 				errorList.append(obj.name + " object must be parented to a chain header object")
 			
-			idList = [chainObj.re_chain_windsettings.id for chainObj in objList if chainObj.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS"]
-			idChanged = False
-			while idList.count(obj.re_chain_windsettings.id) > 1:
-				obj.re_chain_windsettings.id += 1
-				idChanged = True
-			if idChanged:
-				raiseWarning("ID of "+ obj.name + " changed to " + str(obj.re_chain_windsettings.id) + " to avoid ID conflicts.")
 		
 		elif obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS":
 			validParentTypeList = ["RE_CHAIN_HEADER","RE_CHAIN_WINDSETTINGS"]
@@ -1162,13 +1173,6 @@ def chainErrorCheck(chainCollectionName):
 			else:
 				errorList.append(obj.name + " object must be parented to a chain header or wind settings object.")
 			
-			idList = [chainObj.re_chain_chainsettings.id for chainObj in objList if chainObj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"]
-			idChanged = False
-			while idList.count(obj.re_chain_chainsettings.id) > 1:
-				obj.re_chain_chainsettings.id += 1
-				idChanged = True
-			if idChanged:
-				raiseWarning("ID of "+ obj.name + " changed to " + str(obj.re_chain_chainsettings.id) + " to avoid ID conflicts.")
 		
 		elif obj.get("TYPE",None) == "RE_CHAIN_COLLISION_SINGLE":
 			if obj.parent != None:
@@ -1235,7 +1239,7 @@ def chainErrorCheck(chainCollectionName):
 				if bpy.context.scene.objects[obj.re_chain_chainlink.chainGroupAObject].get("TYPE",None) != "RE_CHAIN_CHAINGROUP":
 					errorList.append(obj.name + ": Chain Group A must be set to a Chain Group object")
 			elif obj.re_chain_chainlink.chainGroupAObject != "":
-				raiseWarning(obj.name + ": Chain Group A is set to an object that doesn't exist")
+				warn(obj.name + ": Chain Group A is set to an object that doesn't exist")
 				#errorList.append(obj.name + ": Chain Group A is set to an object that doesn't exist")
 				
 			if bpy.context.scene.objects.get(obj.re_chain_chainlink.chainGroupBObject,None) != None:
@@ -1243,370 +1247,416 @@ def chainErrorCheck(chainCollectionName):
 					errorList.append(obj.name + ": Chain Group B must be set to a Chain Group object")
 			elif obj.re_chain_chainlink.chainGroupBObject != "":
 				#errorList.append(obj.name + ": Chain Group B is set to an object that doesn't exist")
-				raiseWarning(obj.name + ": Chain Group B is set to an object that doesn't exist")
+				warn(obj.name + ": Chain Group B is set to an object that doesn't exist")
 	if headerCount == 0:
 		errorList.append("No chain header object in collection.")
 		
 	elif headerCount > 1:
 		errorList.append("Cannot export with more than one chain header in a collection.")
-	
-	if errorList == []:
-		print("No problems found.")
-		syncCollisionOffsets()
-		return True
-	else:
-		errorString = ""
-		for error in errorList:
-			errorString += textColors.FAIL +"ERROR: " + error + textColors.ENDC +"\n"
-		showMessageBox("Chain structure contains errors and cannot export. Check Window > Toggle System Console for details.",title = "Export Error", icon = "ERROR")
-		print(errorString)
-		print(textColors.FAIL + "__________________________________\nChain export failed."+textColors.ENDC)
-		return False
+	return errorList
+
+def dedupeSettingsIDs(objList,fix = True,warn = raiseWarning):
+	#A wind settings or chain settings ID used more than once goes up by one until it's unique
+	#Returns the IDs export uses as {object name: ID}; with fix off nothing is written
+	idDict = {}
+	for objType,groupName in (("RE_CHAIN_WINDSETTINGS","re_chain_windsettings"),("RE_CHAIN_CHAINSETTINGS","re_chain_chainsettings")):
+		typeObjList = [obj for obj in objList if obj.get("TYPE",None) == objType]
+		currentIDs = {obj.name:getattr(obj,groupName).id for obj in typeObjList}
+		for obj in typeObjList:
+			#Compared against the IDs from before this object changed, as the original check did
+			idList = list(currentIDs.values())
+			newID = currentIDs[obj.name]
+			while idList.count(newID) > 1:
+				newID += 1
+			if newID != currentIDs[obj.name]:
+				currentIDs[obj.name] = newID
+				if fix:
+					getattr(obj,groupName).id = newID
+					warn("ID of "+ obj.name + " changed to " + str(newID) + " to avoid ID conflicts.")
+		idDict.update(currentIDs)
+	return idDict
+
+def getCapsuleEnds(chainCollisionObj):
+	startCapsule = None
+	endCapsule = None
+	for child in chainCollisionObj.children:
+		if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
+			startCapsule = child
+		elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
+			endCapsule = child
+	return startCapsule,endCapsule
+
+def taperedCapsuleShape(chainCollisionObj,version,isChain2):
+	#The shape fixTaperedCapsules gives a capsule: "5" (tapered) when its ends have different radii, "2" where the version has no tapered capsules, None to keep its shape
+	if chainCollisionObj.get("TYPE") != "RE_CHAIN_COLLISION_CAPSULE_ROOT":
+		return None
+	startCapsule,endCapsule = getCapsuleEnds(chainCollisionObj)
+	if startCapsule == None or endCapsule == None:
+		return None
+	shape = chainCollisionObj.re_chain_chaincollision.chainCollisionShape
+	if shape != "5" and startCapsule.scale[0] != endCapsule.scale[0]:
+		return "5" if version >= 46 or isChain2 else "2"
+	elif version < 46 and shape == "5" and not isChain2:
+		return "2"
+	return None
 
 def fixTaperedCapsules(chainCollisionObjList,version,isChain2):
 	for chainCollisionObj in chainCollisionObjList:
-		if chainCollisionObj.get("TYPE") == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
-			startCapsule = None
-			endCapsule = None
-			for child in chainCollisionObj.children: 
-				if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
-					startCapsule = child
-				elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
-					endCapsule = child
-			if startCapsule != None and endCapsule != None:
-				if chainCollisionObj.re_chain_chaincollision.chainCollisionShape != "5" and startCapsule.scale[0] != endCapsule.scale[0]:
-					if version >= 46 or isChain2:
-						print(f"Start and end radius do not match on {chainCollisionObj.name}, changed to a tapered capsule")
-						chainCollisionObj.re_chain_chaincollision.chainCollisionShape = "5"
-						chainCollisionObj.name = chainCollisionObj.name.replace("_CAPSULE","_TCAPSULE")
-						startCapsule.name = startCapsule.name.replace("_CAPSULE","_TCAPSULE")
-						endCapsule.name = endCapsule.name.replace("_CAPSULE","_TCAPSULE")
-					else:
-						print(f"Tapered capsules are not supported on versions lower than 46, {chainCollisionObj.name} changed to normal capsule")
-						chainCollisionObj.re_chain_chaincollision.chainCollisionShape = "2"
-						chainCollisionObj.name = chainCollisionObj.name.replace("_TCAPSULE","_CAPSULE")
-						startCapsule.name = startCapsule.name.replace("_TCAPSULE","_CAPSULE")
-						endCapsule.name = endCapsule.name.replace("_TCAPSULE","_CAPSULE")
-						endCapsule.scale = startCapsule.scale
-				elif version < 46 and chainCollisionObj.re_chain_chaincollision.chainCollisionShape == "5" and not isChain2:
-					print(f"Tapered capsules are not supported on versions lower than 46, {chainCollisionObj.name} changed to normal capsule")
-					chainCollisionObj.re_chain_chaincollision.chainCollisionShape = "2"
-					chainCollisionObj.name = chainCollisionObj.name.replace("_TCAPSULE","_CAPSULE")
-					startCapsule.name = startCapsule.name.replace("_TCAPSULE","_CAPSULE")
-					endCapsule.name = endCapsule.name.replace("_TCAPSULE","_CAPSULE")
-					endCapsule.scale = startCapsule.scale
+		newShape = taperedCapsuleShape(chainCollisionObj,version,isChain2)
+		if newShape == None:
+			continue
+		startCapsule,endCapsule = getCapsuleEnds(chainCollisionObj)
+		if newShape == "5":
+			print(f"Start and end radius do not match on {chainCollisionObj.name}, changed to a tapered capsule")
+			chainCollisionObj.re_chain_chaincollision.chainCollisionShape = "5"
+			chainCollisionObj.name = chainCollisionObj.name.replace("_CAPSULE","_TCAPSULE")
+			startCapsule.name = startCapsule.name.replace("_CAPSULE","_TCAPSULE")
+			endCapsule.name = endCapsule.name.replace("_CAPSULE","_TCAPSULE")
+		else:
+			print(f"Tapered capsules are not supported on versions lower than 46, {chainCollisionObj.name} changed to normal capsule")
+			chainCollisionObj.re_chain_chaincollision.chainCollisionShape = "2"
+			chainCollisionObj.name = chainCollisionObj.name.replace("_TCAPSULE","_CAPSULE")
+			startCapsule.name = startCapsule.name.replace("_TCAPSULE","_CAPSULE")
+			endCapsule.name = endCapsule.name.replace("_TCAPSULE","_CAPSULE")
+			endCapsule.scale = startCapsule.scale
 def exportChainFile(filepath,options, version, isChain2 = False):
 	valid = chainErrorCheck(options["targetCollection"])
 	chainCollection = bpy.data.collections.get(options["targetCollection"],None)
 	if valid and chainCollection != None:
 		print(textColors.OKCYAN + "__________________________________\nChain export started."+textColors.ENDC)
-		if isChain2:
-			newChainFile = Chain2File()
-		else:
-			newChainFile = ChainFile()
-		
-		objList = chainCollection.all_objects
-		
-		windSettingsObjList = []
-		chainSettingsObjList = []
-		chainGroupObjList = []
-		chainSubGroupObjList = []
-		chainCollisionObjList = []
-		chainLinkObjList = []
-		
-		collisionTypes = [
-			"RE_CHAIN_COLLISION_SINGLE",
-			"RE_CHAIN_COLLISION_CAPSULE_ROOT",
-			]
-		
-		for obj in objList:
-			objType = obj.get("TYPE",None)
-			if objType == "RE_CHAIN_HEADER":
-				headerObj = obj
-			elif objType == "RE_CHAIN_WINDSETTINGS":
-				windSettingsObjList.append(obj)
-			elif objType == "RE_CHAIN_CHAINSETTINGS":
-				chainSettingsObjList.append(obj)
-			elif objType == "RE_CHAIN_CHAINGROUP":
-				chainGroupObjList.append(obj)
-			elif objType == "RE_CHAIN_SUBGROUP":
-				chainSubGroupObjList.append(obj)
-			elif objType == "RE_CHAIN_LINK":
-				chainLinkObjList.append(obj)
-			elif objType in collisionTypes:
-				chainCollisionObjList.append(obj)
-				
-		windSettingsObjList.sort(key = lambda item: item.name)
-		chainSettingsObjList.sort(key = lambda item: item.name)
-		chainGroupObjList.sort(key = lambda item: item.name)
-		chainCollisionObjList.sort(key = lambda item: item.name)
-		
-		childSubGroupDict = dict()
-		for subGroupObj in chainSubGroupObjList:
-			if subGroupObj.re_chain_chainsubgroup.parentGroup != None:
-				if subGroupObj.re_chain_chainsubgroup.parentGroup in childSubGroupDict:
-					childSubGroupDict[subGroupObj.re_chain_chainsubgroup.parentGroup].append(subGroupObj)
-				else:
-					childSubGroupDict[subGroupObj.re_chain_chainsubgroup.parentGroup] = [subGroupObj]
-			
-		
-		newChainFile.Header.chainWindSettingsCount = len(windSettingsObjList)
-		newChainFile.Header.chainSettingsCount = len(chainSettingsObjList)
-		newChainFile.Header.chainGroupCount = len(chainGroupObjList)
-		newChainFile.Header.chainModelCollisionCount = len(chainCollisionObjList)
-		newChainFile.Header.chainLinkCount = len(chainLinkObjList)
-		newChainFile.Header.version = version
-		
-		
-		
-		#print(windSettingsObjList)
-		#print(chainSettingsObjList)
-		#print(chainGroupObjList)
-		#print(chainCollisionObjList)
-		headerObj.re_chain_header.version = str(version)
-		setChainHeaderData(newChainFile.Header, headerObj,isChain2)
-		
-		chainGroupTerminateNodeHashDict = {}#Used for chain links
-		for windSettingsObj in windSettingsObjList:
-			if isChain2:
-				windSettings = Chain2WindSettingsData()
-			else:
-				windSettings = WindSettingsData()
-			setWindSettingsData(windSettings, windSettingsObj,isChain2)
-			newChainFile.WindSettingsList.append(windSettings)
-		
-		for chainSettingsObj in chainSettingsObjList:
-			if isChain2:
-				chainSettings = Chain2SettingsData()
-				
-				#MHWilds automatic fix for missing chain setting subdata
-				if len(chainSettingsObj.re_chain_chainsettings.subDataList_items) == 0 and version in MHWILDS_VERSION_SET:
-					for values in MHWILDS_DEFAULT_SETTINGS_SUBDATA:
-						newListItem = chainSettingsObj.re_chain_chainsettings.subDataList_items.add()
-						newListItem.values = values
-					print(f"Detected missing MH Wilds chain setting subdata, added missing subdata to {chainSettingsObj.name}")
-			else:
-				chainSettings = ChainSettingsData()
-				
-			setChainSettingsData(chainSettings, chainSettingsObj,isChain2)
-			
-			
-			
-			newChainFile.ChainSettingsList.append(chainSettings)
-		
-		for chainGroupObj in chainGroupObjList:
-			if isChain2:
-				chainGroup = Chain2GroupData()
-			else:
-				chainGroup = ChainGroupData()
-			setChainGroupData(chainGroup, chainGroupObj,isChain2)
-
-			
-			if chainGroupObj.parent != None and chainGroupObj.parent.get("TYPE") == "RE_CHAIN_CHAINSETTINGS":
-				chainGroup.settingID = chainGroupObj.parent.re_chain_chainsettings.id
-			else:
-				chainGroup.settingID = -1
-			
-			windSettingsParentObj = None
-			if chainGroupObj.parent != None and chainGroupObj.parent.parent != None and chainGroupObj.parent.parent.get("TYPE") == "RE_CHAIN_WINDSETTINGS":
-				windSettingsParentObj = chainGroupObj.parent.parent
-			
-			if chainGroupObj.get("windIDFromFile",False):
-				chainGroup.windID = chainGroupObj.re_chain_chaingroup.fileWindID
-			elif windSettingsParentObj != None:
-				chainGroup.windID = windSettingsParentObj.re_chain_windsettings.id
-
-			else:
-				chainGroup.windID = chainGroupObj.re_chain_chaingroup.fileWindID
-			
-			#Get nodes
-			nodeObjList = []
-			#TODO Add chain group subdata export
-			currentNode = chainGroupObj.children[0]
-			nodeObjList = [currentNode]
-			hasChildNode = True
-			while hasChildNode:
-				currentNodeHasChildNode = False
-				for child in currentNode.children:
-					if child.get("TYPE",None) == "RE_CHAIN_NODE":
-						nodeObjList.append(child)
-						currentNode = child
-						currentNodeHasChildNode = True
-				if not currentNodeHasChildNode:
-					hasChildNode = False
-			for nodeObj in nodeObjList:
-				if isChain2:
-					node = Chain2NodeData()
-				else:
-					node = ChainNodeData()
-				setChainNodeData(node, nodeObj,isChain2)
-				if nodeObj.re_chain_chainnode.constraintJntName.isdigit():
-					node.constraintJntNameHash = int(nodeObj.re_chain_chainnode.constraintJntName)
-					
-				else:
-					node.constraintJntNameHash = hash_wide(nodeObj.re_chain_chainnode.constraintJntName)
-				
-				if nodeObj.re_chain_chainnode.constraintJntName.strip() == "":
-					node.constraintJntNameHash = 0
-				
-				#chain2
-				if isChain2:
-					if nodeObj.re_chain_chainnode.jointHash.isdigit():
-						node.jointHash = int(nodeObj.re_chain_chainnode.jointHash)
-						
-					else:
-						node.jointHash = hash_wide(nodeObj.re_chain_chainnode.jointHash)
-					
-					if nodeObj.re_chain_chainnode.jointHash.strip() == "":
-						node.jointHash = 0
-				
-				
-				chainGroup.nodeList.append(node)
-				if version >= 35 or isChain2:
-					for child in nodeObj.children:
-						if child.get("TYPE",None) == "RE_CHAIN_JIGGLE":
-							if isChain2:
-								jiggle = Chain2JiggleData()
-							else:
-								jiggle = ChainJiggleData()
-							setChainJiggleData(jiggle, child)
-							node.jiggleData = jiggle
-							break
-			
-			
-			#Get subgroups if present
-			if chainGroupObj in childSubGroupDict:
-				childSubGroupDict[chainGroupObj].sort(key = lambda item: item.re_chain_chainsubgroup.subGroupID)
-				
-				for subGroupObj in childSubGroupDict[chainGroupObj]:
-					if isChain2:
-						subGroupData = Chain2SubGroupData()
-					else:
-						subGroupData = ChainSubGroupData()
-						
-					subGroupData.subGroupID = subGroupObj.re_chain_chainsubgroup.subGroupID
-					if subGroupObj.parent != None and subGroupObj.parent.get("TYPE") == "RE_CHAIN_CHAINSETTINGS":
-						subGroupData.settingID = subGroupObj.parent.re_chain_chainsettings.id
-					else:
-						subGroupData.settingID = -1
-					nodeObjList = []
-					currentNode = subGroupObj.children[0]
-					nodeObjList = [currentNode]
-					hasChildNode = True
-					while hasChildNode:
-						currentNodeHasChildNode = False
-						for child in currentNode.children:
-							if child.get("TYPE",None) == "RE_CHAIN_NODE":
-								nodeObjList.append(child)
-								currentNode = child
-								currentNodeHasChildNode = True
-						if not currentNodeHasChildNode:
-							hasChildNode = False
-					for nodeObj in nodeObjList:
-						if isChain2:
-							node = Chain2NodeData()
-						else:
-							node = ChainNodeData()
-						setChainNodeData(node, nodeObj,isChain2)
-						if nodeObj.re_chain_chainnode.constraintJntName.isdigit():
-							node.constraintJntNameHash = int(nodeObj.re_chain_chainnode.constraintJntName)
-							
-						else:
-							node.constraintJntNameHash = hash_wide(nodeObj.re_chain_chainnode.constraintJntName)
-						
-						if nodeObj.re_chain_chainnode.constraintJntName.strip() == "":
-							node.constraintJntNameHash = 0
-						
-						#chain2
-						if isChain2:
-							if nodeObj.re_chain_chainnode.jointHash.isdigit():
-								node.jointHash = int(nodeObj.re_chain_chainnode.jointHash)
-								
-							else:
-								node.jointHash = hash_wide(nodeObj.re_chain_chainnode.jointHash)
-							
-							if nodeObj.re_chain_chainnode.jointHash.strip() == "":
-								node.jointHash = 0
-						
-						
-						subGroupData.nodeList.append(node)
-						if version >= 35 or isChain2:
-							for child in nodeObj.children:
-								if child.get("TYPE",None) == "RE_CHAIN_JIGGLE":
-									if isChain2:
-										jiggle = Chain2JiggleData()
-									else:
-										jiggle = ChainJiggleData()
-									setChainJiggleData(jiggle, child)
-									node.jiggleData = jiggle
-									break
-					
-					if len(subGroupData.nodeList) == len(chainGroup.nodeList):
-						chainGroup.subGroupList.append(subGroupData)
-					else:
-						raiseWarning(f"Skipped subgroup {subGroupData.subGroupID} on {chainGroupObj.name} because the amount of nodes on the sub group does not match the parent chain group.")
-						
-			
-			if "BoneName" in nodeObjList[-1].constraints:
-				terminateNodeName =  nodeObjList[-1].constraints["BoneName"].subtarget
-			else:
-				terminateNodeName = nodeObjList[-1].name.split(".")[0]
-			
-			if terminateNodeName.startswith("b") and ":" in terminateNodeName:
-				terminateNodeName = terminateNodeName.split(":",1)[1]
-			if terminateNodeName.isdigit() and int(terminateNodeName) <= 4294967295:
-				chainGroup.terminateNodeNameHash = int(terminateNodeName)
-			else:
-				chainGroup.terminateNodeNameHash = hash_wide(terminateNodeName)
-			chainGroupTerminateNodeHashDict[chainGroupObj.name] = chainGroup.terminateNodeNameHash
-			chainGroup.terminateNodeName = terminateNodeName
-			chainGroup.nodeCount = len(chainGroup.nodeList)
-			newChainFile.ChainGroupList.append(chainGroup)
-
-		fixTaperedCapsules(chainCollisionObjList,version,isChain2)
-		
-		for chainCollisionObj in chainCollisionObjList:
-			if isChain2:
-				chainCollision = Chain2CollisionData()
-			else:
-				chainCollision = ChainCollisionData()
-			setChainCollisionData(chainCollision, chainCollisionObj,isChain2)
-			newChainFile.ChainCollisionList.append(chainCollision)
-			
-		for chainLinkObj in chainLinkObjList:
-			if isChain2:
-				chainLink = Chain2LinkData()
-			else:
-				chainLink = ChainLinkData()
-			setChainLinkData(chainLink, chainLinkObj,isChain2)
-			colObjList = []
-			for obj in chainLinkObj.children:
-				if obj.get("TYPE") == "RE_CHAIN_LINK_COLLISION":
-					colObjList.append(obj)
-			colObjList.sort(key = lambda item: item.name)
-			
-			for colObj in colObjList:
-				linkNode = ChainLinkNode()
-				setChainLinkCollisionNodeData(linkNode, colObj)
-				chainLink.nodeColLinkList.append(linkNode)
-			
-			
-			chainLink.terminateNodeNameHashA = chainGroupTerminateNodeHashDict[chainLinkObj.re_chain_chainlink.chainGroupAObject] if chainLinkObj.re_chain_chainlink.chainGroupAObject in chainGroupTerminateNodeHashDict else int(chainLinkObj.re_chain_chainlink.chainGroupAObject) if chainLinkObj.re_chain_chainlink.chainGroupAObject.isdigit() else 0
-			chainLink.terminateNodeNameHashB = chainGroupTerminateNodeHashDict[chainLinkObj.re_chain_chainlink.chainGroupBObject] if chainLinkObj.re_chain_chainlink.chainGroupBObject in chainGroupTerminateNodeHashDict else int(chainLinkObj.re_chain_chainlink.chainGroupBObject) if chainLinkObj.re_chain_chainlink.chainGroupBObject.isdigit() else 0
-			
-			chainLink.nodeCount = len(colObjList)
-			if chainLink.nodeCount == 0:
-				for chainGroup in newChainFile.ChainGroupList:
-					if chainLink.terminateNodeNameHashA == chainGroup.terminateNodeNameHash:
-						chainLink.nodeCount = chainGroup.nodeCount
-						break
-			newChainFile.ChainLinkList.append(chainLink)
-			#print(nodeObjList)
-		#Sort chain settings by ID, otherwise the chain groups will be assigned to the wrong chain settings in game
-		newChainFile.ChainSettingsList.sort(key = lambda x: x.id)
+		newChainFile = buildChainFile(chainCollection,version,isChain2)
 		print("Chain Conversion Finished")
 		writeREChain(newChainFile, filepath)
 		return True
+
+def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn = raiseWarning):
+	#The chain file of a collection that passed chainErrorCheck/chainStructureErrors
+	#fixScene writes export's fixes back to the scene (IDs aside, see dedupeSettingsIDs): tapered capsules, missing MH Wilds subdata, UI values
+	#With it off the scene is only read and the file comes out the same (wd_api)
+	objList = chainCollection.all_objects
+	if isChain2:
+		newChainFile = Chain2File()
+	else:
+		newChainFile = ChainFile()
+	
+	
+	windSettingsObjList = []
+	chainSettingsObjList = []
+	chainGroupObjList = []
+	chainSubGroupObjList = []
+	chainCollisionObjList = []
+	chainLinkObjList = []
+	
+	collisionTypes = [
+		"RE_CHAIN_COLLISION_SINGLE",
+		"RE_CHAIN_COLLISION_CAPSULE_ROOT",
+		]
+	
+	for obj in objList:
+		objType = obj.get("TYPE",None)
+		if objType == "RE_CHAIN_HEADER":
+			headerObj = obj
+		elif objType == "RE_CHAIN_WINDSETTINGS":
+			windSettingsObjList.append(obj)
+		elif objType == "RE_CHAIN_CHAINSETTINGS":
+			chainSettingsObjList.append(obj)
+		elif objType == "RE_CHAIN_CHAINGROUP":
+			chainGroupObjList.append(obj)
+		elif objType == "RE_CHAIN_SUBGROUP":
+			chainSubGroupObjList.append(obj)
+		elif objType == "RE_CHAIN_LINK":
+			chainLinkObjList.append(obj)
+		elif objType in collisionTypes:
+			chainCollisionObjList.append(obj)
+			
+	windSettingsObjList.sort(key = lambda item: item.name)
+	chainSettingsObjList.sort(key = lambda item: item.name)
+	settingsIDDict = dedupeSettingsIDs(objList,fix = False)
+	chainGroupObjList.sort(key = lambda item: item.name)
+	chainCollisionObjList.sort(key = lambda item: item.name)
+	
+	childSubGroupDict = dict()
+	for subGroupObj in chainSubGroupObjList:
+		if subGroupObj.re_chain_chainsubgroup.parentGroup != None:
+			if subGroupObj.re_chain_chainsubgroup.parentGroup in childSubGroupDict:
+				childSubGroupDict[subGroupObj.re_chain_chainsubgroup.parentGroup].append(subGroupObj)
+			else:
+				childSubGroupDict[subGroupObj.re_chain_chainsubgroup.parentGroup] = [subGroupObj]
+		
+	
+	newChainFile.Header.chainWindSettingsCount = len(windSettingsObjList)
+	newChainFile.Header.chainSettingsCount = len(chainSettingsObjList)
+	newChainFile.Header.chainGroupCount = len(chainGroupObjList)
+	newChainFile.Header.chainModelCollisionCount = len(chainCollisionObjList)
+	newChainFile.Header.chainLinkCount = len(chainLinkObjList)
+	newChainFile.Header.version = version
+	
+	
+	
+	#print(windSettingsObjList)
+	#print(chainSettingsObjList)
+	#print(chainGroupObjList)
+	#print(chainCollisionObjList)
+	if fixScene:
+		headerObj.re_chain_header.version = str(version)
+	setChainHeaderData(newChainFile.Header, headerObj,isChain2)
+	
+	chainGroupTerminateNodeHashDict = {}#Used for chain links
+	for windSettingsObj in windSettingsObjList:
+		if isChain2:
+			windSettings = Chain2WindSettingsData()
+		else:
+			windSettings = WindSettingsData()
+		setWindSettingsData(windSettings, windSettingsObj,isChain2)
+		windSettings.id = settingsIDDict[windSettingsObj.name]
+		newChainFile.WindSettingsList.append(windSettings)
+	
+	for chainSettingsObj in chainSettingsObjList:
+		if isChain2:
+			chainSettings = Chain2SettingsData()
+			
+			#MHWilds automatic fix for missing chain setting subdata
+			if fixScene and len(chainSettingsObj.re_chain_chainsettings.subDataList_items) == 0 and version in MHWILDS_VERSION_SET:
+				for values in MHWILDS_DEFAULT_SETTINGS_SUBDATA:
+					newListItem = chainSettingsObj.re_chain_chainsettings.subDataList_items.add()
+					newListItem.values = values
+				print(f"Detected missing MH Wilds chain setting subdata, added missing subdata to {chainSettingsObj.name}")
+		else:
+			chainSettings = ChainSettingsData()
+			
+		setChainSettingsData(chainSettings, chainSettingsObj,isChain2)
+		if isChain2 and len(chainSettings.subDataList) == 0 and version in MHWILDS_VERSION_SET:
+			#Same subdata as the fix above, without adding it to the object
+			for values in MHWILDS_DEFAULT_SETTINGS_SUBDATA:
+				entry = Chain2SettingsSubData()
+				entry.unkn0,entry.unkn1A,entry.unkn1B,entry.unkn1C,entry.unkn1D,entry.unkn2,entry.unkn3 = values
+				chainSettings.subDataList.append(entry)
+			chainSettings.subDataCount = len(chainSettings.subDataList)
+		chainSettings.id = settingsIDDict[chainSettingsObj.name]
+		if chainSettingsObj.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS":
+			chainSettings.windID = settingsIDDict[chainSettingsObj.parent.name]
+
+		newChainFile.ChainSettingsList.append(chainSettings)
+	
+	for chainGroupObj in chainGroupObjList:
+		if isChain2:
+			chainGroup = Chain2GroupData()
+		else:
+			chainGroup = ChainGroupData()
+		setChainGroupData(chainGroup, chainGroupObj,isChain2)
+
+		
+		if chainGroupObj.parent != None and chainGroupObj.parent.get("TYPE") == "RE_CHAIN_CHAINSETTINGS":
+			chainGroup.settingID = settingsIDDict[chainGroupObj.parent.name]
+		else:
+			chainGroup.settingID = -1
+		
+		windSettingsParentObj = None
+		if chainGroupObj.parent != None and chainGroupObj.parent.parent != None and chainGroupObj.parent.parent.get("TYPE") == "RE_CHAIN_WINDSETTINGS":
+			windSettingsParentObj = chainGroupObj.parent.parent
+		
+		if chainGroupObj.get("windIDFromFile",False):
+			chainGroup.windID = chainGroupObj.re_chain_chaingroup.fileWindID
+		elif windSettingsParentObj != None:
+			chainGroup.windID = settingsIDDict[windSettingsParentObj.name]
+
+		else:
+			chainGroup.windID = chainGroupObj.re_chain_chaingroup.fileWindID
+		
+		#Get nodes
+		nodeObjList = []
+		#TODO Add chain group subdata export
+		currentNode = chainGroupObj.children[0]
+		nodeObjList = [currentNode]
+		hasChildNode = True
+		while hasChildNode:
+			currentNodeHasChildNode = False
+			for child in currentNode.children:
+				if child.get("TYPE",None) == "RE_CHAIN_NODE":
+					nodeObjList.append(child)
+					currentNode = child
+					currentNodeHasChildNode = True
+			if not currentNodeHasChildNode:
+				hasChildNode = False
+		for nodeObj in nodeObjList:
+			if isChain2:
+				node = Chain2NodeData()
+			else:
+				node = ChainNodeData()
+			setChainNodeData(node, nodeObj,isChain2)
+			if nodeObj.re_chain_chainnode.constraintJntName.isdigit():
+				node.constraintJntNameHash = int(nodeObj.re_chain_chainnode.constraintJntName)
+				
+			else:
+				node.constraintJntNameHash = hash_wide(nodeObj.re_chain_chainnode.constraintJntName)
+			
+			if nodeObj.re_chain_chainnode.constraintJntName.strip() == "":
+				node.constraintJntNameHash = 0
+			
+			#chain2
+			if isChain2:
+				if nodeObj.re_chain_chainnode.jointHash.isdigit():
+					node.jointHash = int(nodeObj.re_chain_chainnode.jointHash)
+					
+				else:
+					node.jointHash = hash_wide(nodeObj.re_chain_chainnode.jointHash)
+				
+				if nodeObj.re_chain_chainnode.jointHash.strip() == "":
+					node.jointHash = 0
+			
+			
+			chainGroup.nodeList.append(node)
+			if version >= 35 or isChain2:
+				for child in nodeObj.children:
+					if child.get("TYPE",None) == "RE_CHAIN_JIGGLE":
+						if isChain2:
+							jiggle = Chain2JiggleData()
+						else:
+							jiggle = ChainJiggleData()
+						setChainJiggleData(jiggle, child)
+						node.jiggleData = jiggle
+						break
+		
+		
+		#Get subgroups if present
+		if chainGroupObj in childSubGroupDict:
+			childSubGroupDict[chainGroupObj].sort(key = lambda item: item.re_chain_chainsubgroup.subGroupID)
+			
+			for subGroupObj in childSubGroupDict[chainGroupObj]:
+				if isChain2:
+					subGroupData = Chain2SubGroupData()
+				else:
+					subGroupData = ChainSubGroupData()
+					
+				subGroupData.subGroupID = subGroupObj.re_chain_chainsubgroup.subGroupID
+				if subGroupObj.parent != None and subGroupObj.parent.get("TYPE") == "RE_CHAIN_CHAINSETTINGS":
+					subGroupData.settingID = settingsIDDict[subGroupObj.parent.name]
+				else:
+					subGroupData.settingID = -1
+				nodeObjList = []
+				currentNode = subGroupObj.children[0]
+				nodeObjList = [currentNode]
+				hasChildNode = True
+				while hasChildNode:
+					currentNodeHasChildNode = False
+					for child in currentNode.children:
+						if child.get("TYPE",None) == "RE_CHAIN_NODE":
+							nodeObjList.append(child)
+							currentNode = child
+							currentNodeHasChildNode = True
+					if not currentNodeHasChildNode:
+						hasChildNode = False
+				for nodeObj in nodeObjList:
+					if isChain2:
+						node = Chain2NodeData()
+					else:
+						node = ChainNodeData()
+					setChainNodeData(node, nodeObj,isChain2)
+					if nodeObj.re_chain_chainnode.constraintJntName.isdigit():
+						node.constraintJntNameHash = int(nodeObj.re_chain_chainnode.constraintJntName)
+						
+					else:
+						node.constraintJntNameHash = hash_wide(nodeObj.re_chain_chainnode.constraintJntName)
+					
+					if nodeObj.re_chain_chainnode.constraintJntName.strip() == "":
+						node.constraintJntNameHash = 0
+					
+					#chain2
+					if isChain2:
+						if nodeObj.re_chain_chainnode.jointHash.isdigit():
+							node.jointHash = int(nodeObj.re_chain_chainnode.jointHash)
+							
+						else:
+							node.jointHash = hash_wide(nodeObj.re_chain_chainnode.jointHash)
+						
+						if nodeObj.re_chain_chainnode.jointHash.strip() == "":
+							node.jointHash = 0
+					
+					
+					subGroupData.nodeList.append(node)
+					if version >= 35 or isChain2:
+						for child in nodeObj.children:
+							if child.get("TYPE",None) == "RE_CHAIN_JIGGLE":
+								if isChain2:
+									jiggle = Chain2JiggleData()
+								else:
+									jiggle = ChainJiggleData()
+								setChainJiggleData(jiggle, child)
+								node.jiggleData = jiggle
+								break
+				
+				if len(subGroupData.nodeList) == len(chainGroup.nodeList):
+					chainGroup.subGroupList.append(subGroupData)
+				else:
+					warn(f"Skipped subgroup {subGroupData.subGroupID} on {chainGroupObj.name} because the amount of nodes on the sub group does not match the parent chain group.")
+					
+		
+		if "BoneName" in nodeObjList[-1].constraints:
+			terminateNodeName =  nodeObjList[-1].constraints["BoneName"].subtarget
+		else:
+			terminateNodeName = nodeObjList[-1].name.split(".")[0]
+		
+		if terminateNodeName.startswith("b") and ":" in terminateNodeName:
+			terminateNodeName = terminateNodeName.split(":",1)[1]
+		if terminateNodeName.isdigit() and int(terminateNodeName) <= 4294967295:
+			chainGroup.terminateNodeNameHash = int(terminateNodeName)
+		else:
+			chainGroup.terminateNodeNameHash = hash_wide(terminateNodeName)
+		chainGroupTerminateNodeHashDict[chainGroupObj.name] = chainGroup.terminateNodeNameHash
+		chainGroup.terminateNodeName = terminateNodeName
+		chainGroup.nodeCount = len(chainGroup.nodeList)
+		newChainFile.ChainGroupList.append(chainGroup)
+
+	shapeDict = {obj.name:taperedCapsuleShape(obj,version,isChain2) for obj in chainCollisionObjList}
+	if fixScene:
+		fixTaperedCapsules(chainCollisionObjList,version,isChain2)
+		shapeDict = {}#The shapes are on the objects now
+
+	for chainCollisionObj in chainCollisionObjList:
+		if isChain2:
+			chainCollision = Chain2CollisionData()
+		else:
+			chainCollision = ChainCollisionData()
+		setChainCollisionData(chainCollision, chainCollisionObj,isChain2,syncUI = fixScene)
+		newShape = shapeDict.get(chainCollisionObj.name)
+		if newShape != None:
+			#What the setter reads once fixTaperedCapsules has set the shape
+			chainCollision.chainCollisionShape = int(newShape)
+			chainCollision.endRadius = getCapsuleEnds(chainCollisionObj)[1].scale[0] if newShape == "5" else chainCollisionObj.re_chain_chaincollision.endRadius
+		newChainFile.ChainCollisionList.append(chainCollision)
+		
+	for chainLinkObj in chainLinkObjList:
+		if isChain2:
+			chainLink = Chain2LinkData()
+		else:
+			chainLink = ChainLinkData()
+		setChainLinkData(chainLink, chainLinkObj,isChain2)
+		colObjList = []
+		for obj in chainLinkObj.children:
+			if obj.get("TYPE") == "RE_CHAIN_LINK_COLLISION":
+				colObjList.append(obj)
+		colObjList.sort(key = lambda item: item.name)
+		
+		for colObj in colObjList:
+			linkNode = ChainLinkNode()
+			setChainLinkCollisionNodeData(linkNode, colObj)
+			chainLink.nodeColLinkList.append(linkNode)
+		
+		
+		chainLink.terminateNodeNameHashA = chainGroupTerminateNodeHashDict[chainLinkObj.re_chain_chainlink.chainGroupAObject] if chainLinkObj.re_chain_chainlink.chainGroupAObject in chainGroupTerminateNodeHashDict else int(chainLinkObj.re_chain_chainlink.chainGroupAObject) if chainLinkObj.re_chain_chainlink.chainGroupAObject.isdigit() else 0
+		chainLink.terminateNodeNameHashB = chainGroupTerminateNodeHashDict[chainLinkObj.re_chain_chainlink.chainGroupBObject] if chainLinkObj.re_chain_chainlink.chainGroupBObject in chainGroupTerminateNodeHashDict else int(chainLinkObj.re_chain_chainlink.chainGroupBObject) if chainLinkObj.re_chain_chainlink.chainGroupBObject.isdigit() else 0
+		
+		chainLink.nodeCount = len(colObjList)
+		if chainLink.nodeCount == 0:
+			for chainGroup in newChainFile.ChainGroupList:
+				if chainLink.terminateNodeNameHashA == chainGroup.terminateNodeNameHash:
+					chainLink.nodeCount = chainGroup.nodeCount
+					break
+		newChainFile.ChainLinkList.append(chainLink)
+		#print(nodeObjList)
+	#Sort chain settings by ID, otherwise the chain groups will be assigned to the wrong chain settings in game
+	newChainFile.ChainSettingsList.sort(key = lambda x: x.id)
+	return newChainFile
 		#for newWindSetttings in newChainFile.WindSettingsList:
 			#print(newWindSetttings)
 		#for newChainSetttings in newChainFile.ChainSettingsList:

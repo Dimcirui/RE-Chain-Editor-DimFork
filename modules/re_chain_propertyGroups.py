@@ -11,6 +11,9 @@ from bpy.props import (StringProperty,
 					   )
 
 
+import math
+import struct
+
 from .pymmh3 import hash_wide
 
 from .file_re_chain2 import Chain2SettingsSubData
@@ -2280,6 +2283,24 @@ def getChainNode(ChainNodeData,targetObject,isChain2 = False):
 	if isChain2:
 		targetObject.re_chain_chainnode.basePos = ChainNodeData.basePos
 	
+def rotationAsQuaternion(obj):
+	#The quaternion switching rotation_mode to QUATERNION would give, without switching it (export must not change the scene)
+	if obj.rotation_mode == "QUATERNION":
+		return obj.rotation_quaternion
+	if obj.rotation_mode == "AXIS_ANGLE":
+		#Blender's axis_angle_to_quat step by step in single precision; mathutils.Quaternion(axis,angle) wraps the angle first, which changes the last bits
+		#Matches except for the odd last-bit difference in the cosine
+		toFloat = lambda value: struct.unpack("f",struct.pack("f",value))[0]
+		angle,axisX,axisY,axisZ = obj.rotation_axis_angle
+		lengthSquared = toFloat(toFloat(toFloat(axisX*axisX) + toFloat(axisY*axisY)) + toFloat(axisZ*axisZ))
+		if lengthSquared <= 1.0e-35:
+			return (1.0,0.0,0.0,0.0)
+		inverseLength = toFloat(1.0 / toFloat(math.sqrt(lengthSquared)))
+		halfAngle = toFloat(0.5 * angle)
+		sine = toFloat(math.sin(halfAngle))
+		return (toFloat(math.cos(halfAngle)),toFloat(toFloat(axisX*inverseLength)*sine),toFloat(toFloat(axisY*inverseLength)*sine),toFloat(toFloat(axisZ*inverseLength)*sine))
+	return obj.rotation_euler.to_quaternion()
+
 def setChainNodeData(ChainNodeData,targetObject, isChain2 = False):
 	ChainNodeData.angleLimitRad = targetObject.re_chain_chainnode.angleLimitRad 
 	ChainNodeData.angleLimitDistance = targetObject.re_chain_chainnode.angleLimitDistance 
@@ -2300,12 +2321,11 @@ def setChainNodeData(ChainNodeData,targetObject, isChain2 = False):
 	for child in targetObject.children:
 		if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME":
 			frame = child
-	frame.rotation_mode = "QUATERNION"#Have to set rotation mode to quaternion in case euler rotation is used, rotation wouldn't export properly in that case
-	ChainNodeData.angleLimitDirectionX = frame.rotation_quaternion[1]
-	ChainNodeData.angleLimitDirectionY = frame.rotation_quaternion[2]
-	ChainNodeData.angleLimitDirectionZ = frame.rotation_quaternion[3]
-	ChainNodeData.angleLimitDirectionW = frame.rotation_quaternion[0]
-	frame.rotation_mode = "XYZ"
+	frameRotation = rotationAsQuaternion(frame)
+	ChainNodeData.angleLimitDirectionX = frameRotation[1]
+	ChainNodeData.angleLimitDirectionY = frameRotation[2]
+	ChainNodeData.angleLimitDirectionZ = frameRotation[3]
+	ChainNodeData.angleLimitDirectionW = frameRotation[0]
 	if isChain2:
 		ChainNodeData.basePos = (targetObject.re_chain_chainnode.basePos[0],targetObject.re_chain_chainnode.basePos[1],targetObject.re_chain_chainnode.basePos[2])
 class chainJigglePropertyGroup(bpy.types.PropertyGroup):
@@ -2576,7 +2596,8 @@ def getChainCollision(ChainCollisionData,targetObject,isChain2 = False):
 		targetObject.re_chain_collision_subdata.unknSubCollisionData2 = ChainCollisionData.subData.unknSubCollisionData2
 		targetObject.re_chain_collision_subdata.unknSubCollisionData3 = ChainCollisionData.subData.unknSubCollisionData3
 
-def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False):
+def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False,syncUI = True):
+	#syncUI off leaves the collision's properties as they are (wd_api exports without writing to the scene)
 	ChainCollisionData.rotationOrder = int(targetObject.re_chain_chaincollision.rotationOrder)
 	ChainCollisionData.radius = targetObject.scale[0]
 	ChainCollisionData.endRadius = targetObject.re_chain_chaincollision.endRadius
@@ -2603,8 +2624,9 @@ def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False):
 		ChainCollisionData.rotOffsetY = targetObject.rotation_quaternion[2]
 		ChainCollisionData.rotOffsetZ = targetObject.rotation_quaternion[3]
 		ChainCollisionData.rotOffsetW = targetObject.rotation_quaternion[0]
-		targetObject.re_chain_chaincollision.collisionOffset = targetObject.location
-		targetObject.re_chain_chaincollision.radius = targetObject.scale[0]
+		if syncUI:
+			targetObject.re_chain_chaincollision.collisionOffset = targetObject.location
+			targetObject.re_chain_chaincollision.radius = targetObject.scale[0]
 	else:
 		startCapsule = None
 		endCapsule = None
@@ -2628,12 +2650,14 @@ def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False):
 			ChainCollisionData.posY = startCapsule.location[1]
 			ChainCollisionData.posZ = startCapsule.location[2]
 			#Update UI value if the user moved the collision via the grab tool
-			targetObject.re_chain_chaincollision.collisionOffset = startCapsule.location
-			targetObject.re_chain_chaincollision.radius = startCapsule.scale[0]
+			if syncUI:
+				targetObject.re_chain_chaincollision.collisionOffset = startCapsule.location
+				targetObject.re_chain_chaincollision.radius = startCapsule.scale[0]
 		if endCapsule != None:
 			if ChainCollisionData.chainCollisionShape == 5:
 				ChainCollisionData.endRadius = endCapsule.scale[0]
-				targetObject.re_chain_chaincollision.endRadius = endCapsule.scale[0]
+				if syncUI:
+					targetObject.re_chain_chaincollision.endRadius = endCapsule.scale[0]
 			boneName = endCapsule.constraints["BoneName"].subtarget
 			if boneName.startswith("b") and ":" in boneName:
 				boneName = boneName.split(":",1)[1]
@@ -2642,7 +2666,8 @@ def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False):
 			ChainCollisionData.pairPosY = endCapsule.location[1]
 			ChainCollisionData.pairPosZ = endCapsule.location[2]
 			#Update UI value if the user moved the collision via the grab tool
-			targetObject.re_chain_chaincollision.endCollisionOffset = endCapsule.location
+			if syncUI:
+				targetObject.re_chain_chaincollision.endCollisionOffset = endCapsule.location
 		else:
 			ChainCollisionData.pairPosX = 0.0
 			ChainCollisionData.pairPosY = 0.0

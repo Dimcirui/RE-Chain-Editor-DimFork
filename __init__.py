@@ -31,6 +31,7 @@ from .modules.re_chain_operators import WM_OT_ChainFromBone,WM_OT_FixAngleLimitF
 
 from .modules.blender_re_clsp import importCLSPFile,exportCLSPFile
 from .modules import re_chain_type_sync
+from . import wd_api#Imported so other add-ons find it in sys.modules
 
 class REChainPreferences(AddonPreferences):
 	bl_idname = __name__

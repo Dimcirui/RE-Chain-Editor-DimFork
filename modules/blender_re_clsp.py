@@ -581,7 +581,21 @@ def importCLSPFile(filepath,options):
 	return True
 def clspErrorCheck(chainCollectionName):
 	print("\nChecking for problems with chain structure...")
-	
+	errorList = clspStructureErrors(bpy.data.collections.get(chainCollectionName))
+	if errorList == []:
+		print("No problems found.")
+		return True
+	else:
+		errorString = ""
+		for error in errorList:
+			errorString += textColors.FAIL +"ERROR: " + error + textColors.ENDC +"\n"
+		showMessageBox("Chain structure contains errors and cannot export. Check Window > Toggle System Console for details.",title = "Export Error", icon = "ERROR")
+		print(errorString)
+		print(textColors.FAIL + "__________________________________\nChain export failed."+textColors.ENDC)
+		return False
+
+def clspStructureErrors(chainCollection):
+	#Problems that stop the CLSP from exporting, as a list of messages; reads the scene without changing it
 	#Check that there is chain data collection
 	#Check that there is only one header
 	#Check that all nodes have one frame
@@ -594,8 +608,8 @@ def clspErrorCheck(chainCollectionName):
 	#TODO
 	#Check that chain links are valid
 	errorList = []
-	if bpy.data.collections.get(chainCollectionName) != None:
-		objList = bpy.data.collections[chainCollectionName].all_objects
+	if chainCollection != None:
+		objList = chainCollection.all_objects
 	else:
 		errorList.append("Chain objects must be contained in a collection.")
 		objList = []
@@ -651,18 +665,7 @@ def clspErrorCheck(chainCollectionName):
 						errorList.append("Invalid child of constraint on " + endCapsule.name)
 				else:
 					errorList.append("Child of constraint missing on " + endCapsule.name)
-					
-	if errorList == []:
-		print("No problems found.")
-		return True
-	else:
-		errorString = ""
-		for error in errorList:
-			errorString += textColors.FAIL +"ERROR: " + error + textColors.ENDC +"\n"
-		showMessageBox("Chain structure contains errors and cannot export. Check Window > Toggle System Console for details.",title = "Export Error", icon = "ERROR")
-		print(errorString)
-		print(textColors.FAIL + "__________________________________\nChain export failed."+textColors.ENDC)
-		return False
+	return errorList
 
 def fixTaperedCapsules(chainCollisionObjList,version):
 	for chainCollisionObj in chainCollisionObjList:
@@ -682,106 +685,135 @@ def fixTaperedCapsules(chainCollisionObjList,version):
 					startCapsule.name = startCapsule.name.replace("_CAPSULE","_TCAPSULE")
 					endCapsule.name = endCapsule.name.replace("_CAPSULE","_TCAPSULE")
 				
+def clspCollisionValues(chainCollisionObj,fromProperties = True):
+	#[shape, offset, end offset, radius, end radius] of a collision as export writes them
+	#Export first syncs the properties from the objects (syncCollisionOffsets); fromProperties off works out the synced values without writing them
+	collision = chainCollisionObj.re_chain_chaincollision
+	values = [collision.chainCollisionShape,tuple(collision.collisionOffset),tuple(collision.endCollisionOffset),collision.radius,collision.endRadius]
+	if not fromProperties:
+		objType = chainCollisionObj.get("TYPE",None)
+		if objType == "RE_CHAIN_COLLISION_SINGLE":
+			values[1] = tuple(chainCollisionObj.location)
+			values[3] = chainCollisionObj.scale[0]
+		elif objType == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
+			for child in chainCollisionObj.children:
+				if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
+					values[1] = tuple(child.location)
+					values[3] = child.scale[0]
+				elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
+					values[2] = tuple(child.location)
+					if values[0] == "5":
+						values[4] = child.scale[0]
+			#fixTaperedCapsules changes nothing after the sync: setting the radius of a capsule that isn't tapered scales its end to the same radius
+	return values
+
 def exportCLSPFile(filepath,options, version):
 	valid = clspErrorCheck(options["targetCollection"])
 	chainCollection = bpy.data.collections.get(options["targetCollection"],None)
 	if valid and chainCollection != None:
 		syncCollisionOffsets()
 		print(textColors.OKCYAN + "__________________________________\nCLSP export started."+textColors.ENDC)
-		newCLSPFile = CLSPFile()
-		
-		objList = chainCollection.all_objects
-		
-		chainCollisionObjList = []
-		
-		collisionTypes = [
-			"RE_CHAIN_COLLISION_SINGLE",
-			"RE_CHAIN_COLLISION_CAPSULE_ROOT",
-			"RE_CHAIN_COLLISION_PLANE",
-			]
-		
-		for obj in objList:
-			objType = obj.get("TYPE",None)
-			if objType in collisionTypes:
-				chainCollisionObjList.append(obj)
-				
-		chainCollisionObjList.sort(key = lambda item: item.name)
-		
-		#newCLSPFile.header.entryCount = len(chainCollisionObjList)
-		
-		
-		#print(windSettingsObjList)
-		#print(chainSettingsObjList)
-		#print(chainGroupObjList)
-		#print(chainCollisionObjList)
-		
-		
-		fixTaperedCapsules(chainCollisionObjList,version)
-		showWarningMessage = False
-		for chainCollisionObj in chainCollisionObjList:
-			
-			translatedShapeType = chainShapeEnumTranslationDict.get(chainCollisionObj.re_chain_chaincollision.chainCollisionShape,-1)
-			if translatedShapeType != -1:
-				clspEntry = CLSPEntry()
-				clspEntry.chainCollisionShape = translatedShapeType
-				clspEntry.x1 = chainCollisionObj.re_chain_chaincollision.collisionOffset[0]
-				clspEntry.y1 = chainCollisionObj.re_chain_chaincollision.collisionOffset[1]
-				clspEntry.z1 = chainCollisionObj.re_chain_chaincollision.collisionOffset[2]
-				clspEntry.x2 = chainCollisionObj.re_chain_chaincollision.endCollisionOffset[0]
-				clspEntry.y2 = chainCollisionObj.re_chain_chaincollision.endCollisionOffset[1]
-				clspEntry.z2 = chainCollisionObj.re_chain_chaincollision.endCollisionOffset[2]
-				clspEntry.unknBitFlag0 = chainCollisionObj.re_chain_chaincollision.clspBitFlag0
-				clspEntry.unknBitFlag1 = chainCollisionObj.re_chain_chaincollision.clspBitFlag1
-				#Plane
-				if translatedShapeType == 4 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_PLANE":
-					clspEntry.jointNameHash, n, d = planeCollisionData(chainCollisionObj)
-					clspEntry.pairJointNameHash = NO_JOINT_HASH
-					clspEntry.x1, clspEntry.y1, clspEntry.z1 = n[0], n[1], n[2]
-					clspEntry.x2, clspEntry.y2, clspEntry.z2 = 0.0, 0.0, 0.0
-					clspEntry.collisionCapsuleStartRadius = d
-				#Sphere
-				elif translatedShapeType == 0 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_SINGLE":
-					clspEntry.collisionCapsuleStartRadius = chainCollisionObj.re_chain_chaincollision.radius
-					if "HASH_" in chainCollisionObj.constraints["BoneName"].subtarget:
-						clspEntry.jointNameHash = int(chainCollisionObj.constraints["BoneName"].subtarget.split("HASH_")[1])
-					else:
-						clspEntry.jointNameHash = hash_wide(chainCollisionObj.constraints["BoneName"].subtarget)
-					clspEntry.pairJointNameHash = 2180083513
-				#Capsule/Tapered Capsule
-				elif translatedShapeType == 1 or translatedShapeType == 3 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
-					
-					for child in chainCollisionObj.children: 
-						if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
-							startCapsule = child
-						elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
-							endCapsule = child
-					if "HASH_" in startCapsule.constraints["BoneName"].subtarget:
-						clspEntry.jointNameHash = int(startCapsule.constraints["BoneName"].subtarget.split("HASH_")[1])
-					else:
-						clspEntry.jointNameHash = hash_wide(startCapsule.constraints["BoneName"].subtarget)
-						
-					if "HASH_" in startCapsule.constraints["BoneName"].subtarget:
-						clspEntry.pairJointNameHash = int(endCapsule.constraints["BoneName"].subtarget.split("HASH_")[1])
-					else:
-						clspEntry.pairJointNameHash = hash_wide(endCapsule.constraints["BoneName"].subtarget)
-						
-					if translatedShapeType == 1:
-						clspEntry.collisionSphereRadius = chainCollisionObj.re_chain_chaincollision.radius
-					else:
-						clspEntry.collisionCapsuleStartRadius = chainCollisionObj.re_chain_chaincollision.radius
-						clspEntry.collisionCapsuleEndRadius = chainCollisionObj.re_chain_chaincollision.endRadius
-				newCLSPFile.clspEntryList.append(clspEntry)
-			else:
-				showWarningMessage = True
-				raiseWarning(f"Skipped {chainCollisionObj.name} because it contains an unsupported collision shape type for CLSP")
-				
-			
-		newCLSPFile.header.entryCount = len(newCLSPFile.clspEntryList)
+		newCLSPFile,showWarningMessage = buildCLSPFile(chainCollection,version)
 		print("Writing CLSP...")
 		writeRECLSP(newCLSPFile, filepath)
 		if showWarningMessage:
 			showMessageBox("CLSP exported with warnings. Check the console for details. Window > Toggle System Console",title = "Export Warning", icon = "ERROR")
 		return True
+
+def buildCLSPFile(chainCollection,version,fixScene = True,warn = raiseWarning):
+	#(CLSP file, whether a collision was skipped) of a collection that passed clspErrorCheck/clspStructureErrors, after syncCollisionOffsets
+	#fixScene off leaves the scene as it is and gives the same file without the sync (wd_api)
+	newCLSPFile = CLSPFile()
+
+	objList = chainCollection.all_objects
+	
+	chainCollisionObjList = []
+	
+	collisionTypes = [
+		"RE_CHAIN_COLLISION_SINGLE",
+		"RE_CHAIN_COLLISION_CAPSULE_ROOT",
+		"RE_CHAIN_COLLISION_PLANE",
+		]
+	
+	for obj in objList:
+		objType = obj.get("TYPE",None)
+		if objType in collisionTypes:
+			chainCollisionObjList.append(obj)
+			
+	chainCollisionObjList.sort(key = lambda item: item.name)
+	
+	#newCLSPFile.header.entryCount = len(chainCollisionObjList)
+	
+	
+	#print(windSettingsObjList)
+	#print(chainSettingsObjList)
+	#print(chainGroupObjList)
+	#print(chainCollisionObjList)
+	
+	
+	if fixScene:
+		fixTaperedCapsules(chainCollisionObjList,version)
+	showWarningMessage = False
+	for chainCollisionObj in chainCollisionObjList:
+		shape,collisionOffset,endCollisionOffset,radius,endRadius = clspCollisionValues(chainCollisionObj,fromProperties = fixScene)
+		translatedShapeType = chainShapeEnumTranslationDict.get(shape,-1)
+		if translatedShapeType != -1:
+			clspEntry = CLSPEntry()
+			clspEntry.chainCollisionShape = translatedShapeType
+			clspEntry.x1 = collisionOffset[0]
+			clspEntry.y1 = collisionOffset[1]
+			clspEntry.z1 = collisionOffset[2]
+			clspEntry.x2 = endCollisionOffset[0]
+			clspEntry.y2 = endCollisionOffset[1]
+			clspEntry.z2 = endCollisionOffset[2]
+			clspEntry.unknBitFlag0 = chainCollisionObj.re_chain_chaincollision.clspBitFlag0
+			clspEntry.unknBitFlag1 = chainCollisionObj.re_chain_chaincollision.clspBitFlag1
+			#Plane
+			if translatedShapeType == 4 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_PLANE":
+				clspEntry.jointNameHash, n, d = planeCollisionData(chainCollisionObj)
+				clspEntry.pairJointNameHash = NO_JOINT_HASH
+				clspEntry.x1, clspEntry.y1, clspEntry.z1 = n[0], n[1], n[2]
+				clspEntry.x2, clspEntry.y2, clspEntry.z2 = 0.0, 0.0, 0.0
+				clspEntry.collisionCapsuleStartRadius = d
+			#Sphere
+			elif translatedShapeType == 0 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_SINGLE":
+				clspEntry.collisionCapsuleStartRadius = radius
+				if "HASH_" in chainCollisionObj.constraints["BoneName"].subtarget:
+					clspEntry.jointNameHash = int(chainCollisionObj.constraints["BoneName"].subtarget.split("HASH_")[1])
+				else:
+					clspEntry.jointNameHash = hash_wide(chainCollisionObj.constraints["BoneName"].subtarget)
+				clspEntry.pairJointNameHash = 2180083513
+			#Capsule/Tapered Capsule
+			elif translatedShapeType == 1 or translatedShapeType == 3 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
+				
+				for child in chainCollisionObj.children: 
+					if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
+						startCapsule = child
+					elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
+						endCapsule = child
+				if "HASH_" in startCapsule.constraints["BoneName"].subtarget:
+					clspEntry.jointNameHash = int(startCapsule.constraints["BoneName"].subtarget.split("HASH_")[1])
+				else:
+					clspEntry.jointNameHash = hash_wide(startCapsule.constraints["BoneName"].subtarget)
+					
+				if "HASH_" in startCapsule.constraints["BoneName"].subtarget:
+					clspEntry.pairJointNameHash = int(endCapsule.constraints["BoneName"].subtarget.split("HASH_")[1])
+				else:
+					clspEntry.pairJointNameHash = hash_wide(endCapsule.constraints["BoneName"].subtarget)
+					
+				if translatedShapeType == 1:
+					clspEntry.collisionSphereRadius = radius
+				else:
+					clspEntry.collisionCapsuleStartRadius = radius
+					clspEntry.collisionCapsuleEndRadius = endRadius
+			newCLSPFile.clspEntryList.append(clspEntry)
+		else:
+			showWarningMessage = True
+			warn(f"Skipped {chainCollisionObj.name} because it contains an unsupported collision shape type for CLSP")
+			
+		
+	newCLSPFile.header.entryCount = len(newCLSPFile.clspEntryList)
+	return newCLSPFile,showWarningMessage
 		#for newWindSetttings in newChainFile.WindSettingsList:
 			#print(newWindSetttings)
 		#for newChainSetttings in newChainFile.ChainSettingsList:
