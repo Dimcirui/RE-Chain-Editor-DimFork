@@ -7,6 +7,7 @@ from .file_re_clsp import readRECLSP,writeRECLSP,CLSPFile,CLSPEntry
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree
+from .re_chain_type_sync import DUPLICATE_SUFFIX
 
 
 #TODO Clean this up, most of it is copied from chain stuff and a lot is redundant
@@ -364,6 +365,22 @@ def planeCollisionData(planeObj):
 		jointHash = NO_JOINT_HASH
 		n, p = Vector((n[0],n[2],-n[1])), Vector((p[0],p[2],-p[1]))#Blender z up -> game y up
 	return jointHash, n, -n.dot(p)
+CLSP_COLLISION_TYPES = ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_PLANE")
+def migrateCLSPCollectionTypes():
+	#Create Chain Header with the CLSP type used to type the new collection RE_CHAIN_COLLECTION
+	#Retypes those as RE_CLSP_COLLECTION; only a collection that is certainly a CLSP: named .clsp, no chain header, at least one collision
+	migrated = []
+	for collection in bpy.data.collections:
+		if collection.get("~TYPE") != "RE_CHAIN_COLLECTION" or not DUPLICATE_SUFFIX.sub("",collection.name).endswith(".clsp"):
+			continue
+		objTypes = {obj.get("TYPE",None) for obj in collection.all_objects}
+		if "RE_CHAIN_HEADER" in objTypes or not objTypes.intersection(CLSP_COLLISION_TYPES):
+			continue
+		collection["~TYPE"] = "RE_CLSP_COLLECTION"
+		print(f"RE Chain Editor: {collection.name} is a CLSP collection typed as a chain, changed ~TYPE to RE_CLSP_COLLECTION")
+		migrated.append(collection.name)
+	return migrated
+
 def importCLSPFile(filepath,options):
 	
 	armature = None

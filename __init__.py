@@ -30,7 +30,7 @@ from bpy.app.handlers import persistent
 from .modules.ui_re_chain_panels import OBJECT_PT_ChainObjectModePanel,OBJECT_PT_ChainPoseModePanel,OBJECT_PT_ChainPresetPanel,OBJECT_PT_ChainHeaderPanel,OBJECT_PT_WindSettingsPanel,OBJECT_PT_ChainSettingsPanel,OBJECT_PT_ChainSettingsSubDataPanel,OBJECT_PT_ChainGroupPanel,OBJECT_PT_ChainSubGroupPanel,OBJECT_PT_ChainNodePanel,OBJECT_PT_ChainJigglePanel,OBJECT_PT_ChainCollisionPanel,OBJECT_PT_ChainClipboardPanel,OBJECT_PT_ChainLinkPanel,OBJECT_PT_ChainVisibilityPanel,OBJECT_PT_ChainCollisionSubDataPanel,OBJECT_PT_ChainLinkCollisionPanel,OBJECT_PT_NodeVisPanel,OBJECT_PT_CollisionVisPanel,OBJECT_PT_AngleLimitVisPanel,OBJECT_PT_ColorVisPanel
 from .modules.re_chain_operators import WM_OT_ChainFromBone,WM_OT_FixAngleLimitFrames,WM_OT_CollisionFromBones,WM_OT_AlignChainsToBones,WM_OT_AlignFrames,WM_OT_PointFrame,WM_OT_CopyChainProperties,WM_OT_PasteChainProperties,WM_OT_NewChainHeader,WM_OT_ApplyChainSettingsPreset,WM_OT_NewChainSettings,WM_OT_NewWindSettings,WM_OT_NewChainJiggle,WM_OT_ApplyChainGroupPreset,WM_OT_ApplyChainNodePreset,WM_OT_ApplyWindSettingsPreset,WM_OT_SavePreset,WM_OT_OpenPresetFolder,WM_OT_NewChainLink,WM_OT_CreateChainBoneGroup,WM_OT_SwitchToPoseMode,WM_OT_SwitchToObjectMode,WM_OT_HideNonNodes,WM_OT_HideNonAngleLimits,WM_OT_HideNonCollisions,WM_OT_UnhideAll,WM_OT_RenameBoneChain,WM_OT_ApplyAngleLimitRamp,WM_OT_AlignBoneTailsToAxis,WM_OT_SetAttrFlags,WM_OT_SetNodeAttrFlags,WM_OT_SetSettingAttrFlags,WM_OT_SetJiggleAttrFlags,WM_OT_CreateChainLinkCollision,WM_OT_RefreshLinkCollisions,WM_OT_RedrawAllChains,WM_OT_SetBitFlags,WM_OT_CreateFullBodyClsp,WM_OT_ApplyChainPreset,WM_OT_CreateChainSubGroup,WM_OT_SetCFILPath
 
-from .modules.blender_re_clsp import importCLSPFile,exportCLSPFile
+from .modules.blender_re_clsp import importCLSPFile,exportCLSPFile,migrateCLSPCollectionTypes
 from .modules import re_chain_type_sync
 from . import wd_api#Imported so other add-ons find it in sys.modules
 
@@ -749,6 +749,18 @@ def re_chain_migrate_flags(dummy):
 	#Older scenes stored some bit flag fields as list indices
 	migrateFlagFields()
 
+@persistent
+def re_chain_migrate_clsp_types(dummy):
+	migrateCLSPCollectionTypes()
+
+def migrateCLSPTypesOnEnable():
+	#Runs from a timer: while the add-on registers at startup bpy.data can't be read; a file opened then gets the load_post handler
+	try:
+		migrateCLSPCollectionTypes()
+	except Exception as err:
+		print(f"RE Chain Editor: CLSP collection type check failed: {err}")
+	return None
+
 def register():
 	#addon_updater_ops.register(bl_info)
 	for classEntry in classes:
@@ -791,12 +803,18 @@ def register():
 	
 	bpy.types.Scene.re_chain_clipboard = bpy.props.PointerProperty(type=chainClipboardPropertyGroup)
 	bpy.app.handlers.load_post.append(re_chain_migrate_flags)
+	bpy.app.handlers.load_post.append(re_chain_migrate_clsp_types)
+	bpy.app.timers.register(migrateCLSPTypesOnEnable,first_interval = 0.0)
 	re_chain_type_sync.register()
 	
 def unregister():
 	re_chain_type_sync.unregister()
 	if re_chain_migrate_flags in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.remove(re_chain_migrate_flags)
+	if re_chain_migrate_clsp_types in bpy.app.handlers.load_post:
+		bpy.app.handlers.load_post.remove(re_chain_migrate_clsp_types)
+	if bpy.app.timers.is_registered(migrateCLSPTypesOnEnable):
+		bpy.app.timers.unregister(migrateCLSPTypesOnEnable)
 	#addon_updater_ops.unregister()
 	for classEntry in classes:
 		bpy.utils.unregister_class(classEntry)
