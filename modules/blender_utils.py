@@ -1,7 +1,17 @@
 #Author: NSA Cloud
 import bpy
 
-from .gen_functions import textColors
+from .gen_functions import textColors,getAssetPath
+
+def syncAssetPath(collection,filePath):
+	#After exporting a file: ~ASSETPATH follows the export target, and is removed when the target isn't in a natives folder
+	#Written only when it changes, since every write is a scene update for add-ons watching the collection
+	assetPath = getAssetPath(filePath)
+	if assetPath == None:
+		if "~ASSETPATH" in collection:
+			del collection["~ASSETPATH"]
+	elif collection.get("~ASSETPATH") != assetPath:
+		collection["~ASSETPATH"] = assetPath
 
 def showMessageBox(message = "", title = "Message Box", icon = 'INFO'):
 

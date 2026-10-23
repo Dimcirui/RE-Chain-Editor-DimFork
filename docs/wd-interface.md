@@ -11,7 +11,7 @@ Every chain, chain2 or CLSP file is one root collection. Import and *Create Chai
 | Property | Value |
 |---|---|
 | `~TYPE` | `RE_CHAIN_COLLECTION` for .chain and .chain2, `RE_CLSP_COLLECTION` for .clsp. Written when the collection is created and never changed. |
-| `~ASSETPATH` | Game path of the imported file, without `natives/STM/` and without the version number, e.g. `Art/Model/Character/ch03/039/001/2/ch03_039_0012.chain2`. Written on import when the file is inside a `natives` folder. Collections that were created new, or imported from outside a `natives` folder (including *Create Full Body CLSP*, which imports a bundled file), don't have it. |
+| `~ASSETPATH` | Game path of the collection's file, without `natives/<platform>/` and without the version number, e.g. `Art/Model/Character/ch03/039/001/2/ch03_039_0012.chain2`. Written on import when the file is inside a `natives` folder. After each successful export to a file (Export RE Chain / Chain2 / CLSP, including batch exports that run these), it follows the export target: set to the target's game path when the target is inside a `natives` folder, removed when it isn't, and left alone when unchanged. `wd_api.export_bytes` never changes it. Collections that were created new and never exported, or imported from outside a `natives` folder (including *Create Full Body CLSP*, which imports a bundled file), don't have it. |
 | `BatchExport_path` | Full path of the last export (for RE Toolbox batch export). Not part of this interface. |
 
 The file format is told by the collection name: a name ending in `.chain2` is chain2, `.chain` is the old format, `.clsp` is CLSP (Blender's `.001` suffixes are ignored). Older versions of *Create Chain Header* typed new CLSP collections `RE_CHAIN_COLLECTION`; `wd_api` exports those as CLSP because of their name.
@@ -200,3 +200,4 @@ Its `RE_CHAIN_LINK_COLLISION` children, in name order, are the link's node entri
 ## Changes
 
 - **1**: first version.
+- **1** (same API version, no rename): `~ASSETPATH` also follows the target of each file export, and is removed when a file is exported outside a `natives` folder. Before, only import wrote it.

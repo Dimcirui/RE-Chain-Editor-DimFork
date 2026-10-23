@@ -2,7 +2,7 @@
 import bpy
 import os
 
-from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath
+from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,getAssetPath
 from .file_re_clsp import readRECLSP,writeRECLSP,CLSPFile,CLSPEntry
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
@@ -413,9 +413,8 @@ def importCLSPFile(filepath,options):
 	collisionCollection.color_tag = "COLOR_02"
 	collisionCollection["~TYPE"] = "RE_CLSP_COLLECTION"
 	try:
-		split = splitNativesPath(filepath)
-		if split != None:
-			assetPath = os.path.splitext(split[1])[0].replace(os.sep,"/")
+		assetPath = getAssetPath(filepath)
+		if assetPath != None:
 			collisionCollection["~ASSETPATH"] = assetPath#Used to determine where to export automatically
 	except:
 		print("Failed to set asset path from file path, file is likely not in a natives folder.")

@@ -214,7 +214,13 @@ def splitNativesPath(filePath):#Splits file path of RE Engine natives/platform f
 			return None
 	except:
 		return None
-	
+
+def getAssetPath(filePath):#Game path of a file in a natives/platform folder, as ~ASSETPATH holds it: no version number, / separators. None outside natives
+	split = splitNativesPath(filePath)
+	if split == None:
+		return None
+	return os.path.splitext(split[1])[0].replace(os.sep,"/")
+
 def getAdjacentFileVersion(rootPath,fileType):
 	fileVersion = -1
 	search = wildCardFileSearch(os.path.join(glob.escape(rootPath),"*"+fileType+"*"))

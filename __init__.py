@@ -23,6 +23,7 @@ from bpy.props import StringProperty, BoolProperty, EnumProperty, CollectionProp
 from bpy.types import Operator, OperatorFileListElement,AddonPreferences
 
 from .modules.gen_functions import textColors
+from .modules.blender_utils import syncAssetPath
 from .modules.blender_re_chain import importChainFile,exportChainFile
 from .modules.re_chain_propertyGroups import chainToolPanelPropertyGroup,chainHeaderPropertyGroup,chainWindSettingsPropertyGroup,chainSettingsPropertyGroup,ChainSettingSubDataPropertyGroup,CHAIN_UL_ChainSettingsSubDataList,chainGroupPropertyGroup,chainSubGroupPropertyGroup,chainNodePropertyGroup,chainJigglePropertyGroup,chainCollisionPropertyGroup,chainClipboardPropertyGroup,chainLinkPropertyGroup,collisionSubDataPropertyGroup,chainLinkCollisionNodePropertyGroup,migrateFlagFields
 from bpy.app.handlers import persistent
@@ -256,6 +257,7 @@ class ExportREChain(bpy.types.Operator, ExportHelper):
 		if success:
 			self.report({"INFO"},"Exported RE Chain successfully.")
 			bpy.data.collections[self.targetCollection]["BatchExport_path"] = self.filepath
+			syncAssetPath(bpy.data.collections[self.targetCollection],self.filepath)
 		else:
 			self.report({"INFO"},"RE Chain export failed. See Window > Toggle System Console for details.")
 		return {"FINISHED"}
@@ -385,6 +387,7 @@ class ExportRECLSP(bpy.types.Operator, ExportHelper):
 		if success:
 			self.report({"INFO"},"Exported RE CLSP successfully.")
 			bpy.data.collections[self.targetCollection]["BatchExport_path"] = self.filepath
+			syncAssetPath(bpy.data.collections[self.targetCollection],self.filepath)
 		else:
 			self.report({"INFO"},"RE CLSP export failed. See Window > Toggle System Console for details.")
 		return {"FINISHED"}
@@ -557,6 +560,7 @@ class ExportREChain2(bpy.types.Operator, ExportHelper):
 			#Add batch export entry to RE Toolbox if it doesn't already have one
 			
 			bpy.data.collections[self.targetCollection]["BatchExport_path"] = self.filepath
+			syncAssetPath(bpy.data.collections[self.targetCollection],self.filepath)
 		else:
 			self.report({"INFO"},"RE Chain export failed. See Window > Toggle System Console for details.")
 		return {"FINISHED"}

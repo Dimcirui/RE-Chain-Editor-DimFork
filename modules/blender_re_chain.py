@@ -4,7 +4,7 @@ import os
 from mathutils import Matrix
 from math import radians
 
-from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath
+from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,getAssetPath
 from .file_re_chain import readREChain,writeREChain
 from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
 from .pymmh3 import hash_wide
@@ -501,9 +501,8 @@ def importChainFile(filepath,options,isChain2 = False):
 					break
 		chainCollection = createChainCollection(chainFileName,parentCollection)
 		try:
-				split = splitNativesPath(filepath)
-				if split != None:
-					assetPath = os.path.splitext(split[1])[0].replace(os.sep,"/")
+				assetPath = getAssetPath(filepath)
+				if assetPath != None:
 					chainCollection["~ASSETPATH"] = assetPath#Used to determine where to export automatically
 		except:
 			print("Failed to set asset path from file path, file is likely not in a natives folder.")
