@@ -18,6 +18,53 @@ def findHeaderObj():
 			return None
 PRESET_VERSION = 6#To be changed when there are changes to chain object variables
 skipKeys = set(["subDataList_items"])
+
+#chain and chain2 put the group attribute flags on different bits (Scene Colliders is 0x20000 in chain, 0x10000 in
+#chain2, where chain has Enabled Scale Animation). Presets without chainFileType are told apart by keys only one format sets
+FORMAT_KEYS = {"RE_CHAIN_CHAINSETTINGS":("muzzleDirection","motionForceCalcType"),"RE_CHAIN_CHAINGROUP":("extraNodeLocalPos","interpCount")}
+GROUP_ATTR_KEYS = {"RE_CHAIN_CHAINSETTINGS":"groupDefaultAttr","RE_CHAIN_CHAINGROUP":"attrFlags"}
+
+def presetFileType(values,objType,presetDict = None):
+	"""The chain format (chain or chain2) the preset values were saved from, or None when it can't be told."""
+	presetDict = presetDict if presetDict != None else values
+	if presetDict.get("chainFileType",None) in ("chain","chain2"):
+		return presetDict["chainFileType"]
+	if "chainVersion" in presetDict:
+		return "chain"
+	if objType in FORMAT_KEYS:
+		chainKey, chain2Key = FORMAT_KEYS[objType]
+		if chainKey in values and chain2Key not in values:
+			return "chain"
+		if chain2Key in values and chainKey not in values:
+			return "chain2"
+	return None
+
+def remapGroupAttr(value,fromType,toType):
+	"""Moves each group attribute flag to its bit in the other format. A flag the other format lacks is dropped, a bit
+	neither format names is kept."""
+	from .re_chain_operators import chainGroupAttrFlags,chain2GroupAttrFlags
+	source = (chain2GroupAttrFlags() if fromType == "chain2" else chainGroupAttrFlags()).flagDict
+	target = (chain2GroupAttrFlags() if toType == "chain2" else chainGroupAttrFlags()).flagDict
+	value &= 0xFFFFFFFF
+	known = 0
+	result = 0
+	for key,flag in source.items():
+		if value & flag["andFlag"]:
+			known |= flag["andFlag"]
+			if key in target:
+				result |= target[key]["andFlag"]
+	return result | (value & ~known)
+
+def convertPresetGroupAttr(propertyGroup,objType,fromType):
+	toType = bpy.context.scene.re_chain_toolpanel.chainFileType
+	key = GROUP_ATTR_KEYS.get(objType,None)
+	if key == None or fromType == None or fromType == toType:
+		return
+	value = getattr(propertyGroup,key)
+	newValue = remapGroupAttr(value,fromType,toType)
+	if newValue != value:
+		setattr(propertyGroup,key,newValue)
+		print(f"Moved {key} from the {fromType} flag layout to {toType}: {value} -> {newValue}")
 def saveAsPreset(selection,presetName):
 	if len(selection) > 1:
 		return saveChainPreset(selection,presetName)
@@ -66,6 +113,7 @@ def saveAsPreset(selection,presetName):
 				chainHeader = findHeaderObj()
 				if chainHeader != None:
 					presetDict["chainVersion"] = chainHeader.re_chain_header.version
+				presetDict["chainFileType"] = bpy.context.scene.re_chain_toolpanel.chainFileType
 				presetDict["presetVersion"] = PRESET_VERSION
 				jsonPath = os.path.join(os.path.dirname(os.path.split(os.path.abspath(__file__))[0]),"Presets",folderPath,presetName+".json")
 				#print(presetDict)#debug
@@ -152,6 +200,7 @@ def readPresetJSON(filepath,activeObj):
 					propertyGroup[key] = jsonDict[key]
 				except:
 					raiseWarning("Preset is missing key " + str(key) +", cannot set value on active object.")
+		convertPresetGroupAttr(propertyGroup,jsonDict["presetType"],presetFileType(jsonDict,jsonDict["presetType"]))
 		return True
 #Kept per folder: Blender shows garbage for dynamic enum strings Python has freed (non-ASCII preset names)
 PRESET_LISTS = {}
@@ -184,7 +233,7 @@ def saveChainPreset(selection,presetName):
 	if re.search(r'^[\w,\s-]+\.[A-Za-z]{3}$',presetName) or ".." in presetName:
 		showErrorMessageBox("Invalid preset file name. ")
 		return False
-	presetDict = {"presetVersion":PRESET_VERSION,"presetType":"RE_CHAIN_CHAIN"}
+	presetDict = {"presetVersion":PRESET_VERSION,"presetType":"RE_CHAIN_CHAIN","chainFileType":bpy.context.scene.re_chain_toolpanel.chainFileType}
 	for obj in selection:
 		objType = obj.get("TYPE",None)
 		if objType in CHAIN_PRESET_GROUPS and objType not in presetDict:
@@ -240,6 +289,7 @@ def readChainPresetJSON(filepath,selection):
 					propertyGroup[key] = values[key]
 				else:
 					raiseWarning("Preset is missing key " + str(key) + ", cannot set value on " + obj.name + ".")
+		convertPresetGroupAttr(propertyGroup,objType,presetFileType(values,objType,jsonDict))
 		applied += 1
 	if applied == 0:
 		showErrorMessageBox("The preset has nothing for the selected objects (chain settings, chain groups or chain nodes).")

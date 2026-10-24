@@ -1949,23 +1949,24 @@ class WM_OT_SetAttrFlags(Operator):
 		isSetting = context.active_object is not None and context.active_object.get("TYPE") == "RE_CHAIN_CHAINSETTINGS"
 		keys = ["RootRotation","AngleLimit","ExtraNode","CollisionDefault"] + list(GROUP_COLLISION_FLAGS) + ["EnablePartBlend","WindDefault","EnableEnvWind","TransAnimation","AngleLimitRestitution","StretchBoth"]
 		keys += (["StretchBothAutoScale"] if isChain2 else []) + ["EndRotConstraint","ScaleAnimation"] + (["UseBitFlag"] if isChain2 else [])
-		if isChain2 and isSetting:
-			#MH Wilds reads only the collision switches of a setting's Group Default Attribute; the other bits stay as they are
+		if isSetting:
+			#Only the collision switches of a setting's Group Default Attribute are read (MH Wilds; RE4's files set no
+			#other bit); the other bits stay as they are
 			layout.label(text="A setting's Group Default Attribute: only its collision switches are read",icon = "INFO")
 			keys = list(GROUP_COLLISION_FLAGS)
 		for key in keys:
 			row = layout.row()
-			#MH Wilds: greyed when another switch keeps the flag from doing anything
-			if isChain2:
-				if isSetting:
-					row.active = key in GROUP_COLLISION_FLAGS
-				elif key in GROUP_COLLISION_FLAGS:
-					row.active = not self.CollisionDefault
-				elif key == "AngleLimit":
-					row.active = not self.StretchBoth
-				elif key == "AngleLimitRestitution":
-					row.active = self.AngleLimit and not self.StretchBoth
+			#Greyed when another switch keeps the flag from doing anything
+			if key in GROUP_COLLISION_FLAGS and not isSetting:
+				row.active = not self.CollisionDefault
+			elif isChain2 and key == "AngleLimit":
+				row.active = not self.StretchBoth
+			elif isChain2 and key == "AngleLimitRestitution":
+				row.active = self.AngleLimit and not self.StretchBoth
 			row.prop(self,key,text=flagLabel(key))
+			if key == "CollisionCharacter" and not isChain2:
+				#RE4 and older have no CLSP: their chain collisions are all in the chain file
+				layout.label(text="    Only games with CLSP files (Dragon's Dogma 2, Pragmata); RE4 and older have none")
 		
 	@classmethod
 	def poll(self,context):

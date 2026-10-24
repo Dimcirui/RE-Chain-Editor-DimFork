@@ -542,8 +542,8 @@ def retargetLinkCollisions(chainLinkObj,context = None):
 	updateLinkDrawing(chainLinkObj)
 
 def groupDefaultAttrUses(settingObj):
-	"""What reads this setting's Group Default Attribute in MH Wilds: the groups with Collision from Setting that use
-	the setting (its child groups, or groups without a setting when it is the Default one), and the link collisions
+	"""What reads this setting's Group Default Attribute: the groups with Collision from Setting that use the setting
+	(its child groups, or groups without a setting when it is the Default one), and in MH Wilds the link collisions
 	when it is the setting the header's Default Setting Index picks. Returns (group count, used by the links)."""
 	for collection in bpy.data.collections:
 		if settingObj.name in collection.all_objects:
@@ -1691,7 +1691,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 
 	groupDefaultAttr: IntProperty(
 		name="Group Default Attribute",
-		description="Used only by groups with Collision from Setting ticked, and only for its collision switches (Self Collision, Chain Collisions, Virtual Ground, Environment Collision, Collision Group, Scene Colliders). The link collisions read its Chain Collisions, Environment Collision and Scene Colliders from the setting the header's Default Setting Index picks. Other flags are ignored",
+		description="Used only by groups with Collision from Setting ticked, and only for its collision switches (Self Collision, Chain Collisions, Virtual Ground, Environment Collision, Collision Group, Scene Colliders). In MH Wilds the link collisions read its Chain Collisions, Environment Collision and Scene Colliders from the setting the header's Default Setting Index picks. Other flags are ignored",
 		default = 65536,
 		)
 	windEffectCoef: FloatProperty(

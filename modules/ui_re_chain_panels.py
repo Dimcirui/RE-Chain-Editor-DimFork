@@ -430,18 +430,17 @@ class OBJECT_PT_ChainSettingsPanel(Panel):
 			col2.prop(re_chain_chainsettings, "motionForceCalcType")
 			col2.prop(re_chain_chainsettings, "elasticLimit")
 		row = col2.row()
-		if isChain2:
-			#Greyed when nothing reads it; the line under it says what does
-			from .re_chain_propertyGroups import groupDefaultAttrUses
-			groups, links = groupDefaultAttrUses(object)
-			row.active = bool(groups or links)
+		#Greyed when nothing reads it; the line under it says what does
+		from .re_chain_propertyGroups import groupDefaultAttrUses
+		groups, links = groupDefaultAttrUses(object)
+		links = links and isChain2
+		row.active = bool(groups or links)
 		row.prop(re_chain_chainsettings, "groupDefaultAttr")
 		row.operator("re_chain.set_attr_flags",icon='DOWNARROW_HLT', text="")
-		if isChain2:
-			uses = ([f"{groups} group(s) with Collision from Setting"] if groups else []) + (["the link collisions"] if links else [])
-			note = col2.row()
-			note.alignment = 'RIGHT'
-			note.label(text=("Read by " + " and ".join(uses)) if uses else "Not read: no group with Collision from Setting uses this setting, and it is not the links' setting")
+		uses = ([f"{groups} group(s) with Collision from Setting"] if groups else []) + (["the link collisions"] if links else [])
+		note = col2.row()
+		note.alignment = 'RIGHT'
+		note.label(text=("Read by " + " and ".join(uses)) if uses else "Not read: no group with Collision from Setting uses this setting" + (", and it is not the links' setting" if isChain2 else ""))
 		col2.prop(re_chain_chainsettings, "windDelayType")
 		#Greyed: only Wind Delay Type Manual reads it
 		greyed(col2,not isChain2 or re_chain_chainsettings.windDelayType == "2").prop(re_chain_chainsettings, "windDelaySpeed")
@@ -534,7 +533,11 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 		row.prop(re_chain_chaingroup, "clspFlags0")
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaingroup.clspFlags0"
 		col2.prop(re_chain_chaingroup, "clspFlags1")
-		
+		if context.scene.re_chain_toolpanel.chainFileType == "chain":
+			note = col2.row()
+			note.alignment = 'RIGHT'
+			note.label(text="CLSP Flags: only games with CLSP files (Dragon's Dogma 2, Pragmata); RE4 and older have none")
+
 		col2.prop(re_chain_chaingroup, "autoBlendCheckNodeNo")
 		col2.prop(re_chain_chaingroup, "tagCount")
 		col2.prop(re_chain_chaingroup, "tag0")
