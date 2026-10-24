@@ -25,10 +25,10 @@ def greyed(layout,active):
 	column.active = bool(active)
 	return column
 
-def isChain2Collision(obj):
-	"""The collision is in a chain2 chain collection, not a clsp one."""
+def isChainCollision(obj):
+	"""The collision is in a chain or chain2 chain collection, not a clsp one."""
 	types = {collection.get("~TYPE",None) for collection in bpy.data.collections if obj.name in collection.all_objects}
-	return bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2" and "RE_CHAIN_COLLECTION" in types and "RE_CLSP_COLLECTION" not in types
+	return "RE_CHAIN_COLLECTION" in types and "RE_CLSP_COLLECTION" not in types
 
 def chainGroupOfNode(nodeObj):
 	obj = nodeObj.parent
@@ -709,11 +709,11 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 		col2.prop(re_chain_chaincollision, "collisionFilterFlags")
 		#col2.prop(re_chain_chaincollision, "subDataFlag")
 		
-		#A chain2 collision record has no CLSP mask: these are written only by the clsp export
-		inChain2 = isChain2Collision(object)
-		greyed(col2,not inChain2).prop(re_chain_chaincollision, "clspBitFlag0")
-		greyed(col2,not inChain2).prop(re_chain_chaincollision, "clspBitFlag1")
-		if inChain2:
+		#A chain or chain2 collision record has no CLSP mask: these are written only by the clsp export
+		inChain = isChainCollision(object)
+		greyed(col2,not inChain).prop(re_chain_chaincollision, "clspBitFlag0")
+		greyed(col2,not inChain).prop(re_chain_chaincollision, "clspBitFlag1")
+		if inChain:
 			note = col2.row()
 			note.alignment = 'RIGHT'
 			note.label(text="CLSP Flags only available on clsp")
