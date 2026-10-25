@@ -684,18 +684,34 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 	@classmethod
 	def poll(self,context):
 		
-		return context and context.object.mode == "OBJECT" and (context.active_object.get("TYPE",None) == "RE_CHAIN_COLLISION_SINGLE" or context.active_object.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_ROOT")
+		return context and context.object.mode == "OBJECT" and context.active_object.get("TYPE",None) in ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX")
 
 	def draw(self, context):
 		layout = self.layout
 		object = context.active_object
 		re_chain_chaincollision = object.re_chain_chaincollision
-		
+
 		split = layout.split(factor=0.01)
 		col1 = split.column()
 		col2 = split.column()
 		col2.alignment='RIGHT'
 		col2.use_property_split = True
+		#A plane or box is its object's transform (a box's half extents are its scale)
+		if object.get("TYPE",None) in ("RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX"):
+			if isChainCollision(object):
+				#A chain file keeps a radius, end radius and lerp on these too; what the game does with them is unknown
+				col2.prop(re_chain_chaincollision, "rotationOrder")
+				greyed(col2,False).prop(re_chain_chaincollision, "radius")
+				greyed(col2,False).prop(re_chain_chaincollision, "endRadius")
+				greyed(col2,False).prop(re_chain_chaincollision, "lerp")
+				col2.prop(re_chain_chaincollision, "subDataCount")
+				row = col2.row()
+				row.prop(re_chain_chaincollision, "collisionFilterFlags")
+				row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaincollision.collisionFilterFlags"
+			else:
+				col2.prop(re_chain_chaincollision, "clspBitFlag0")
+				col2.prop(re_chain_chaincollision, "clspBitFlag1")
+			return
 		#if version >= 48:
 		col2.prop(re_chain_chaincollision, "rotationOrder")
 		col2.prop(re_chain_chaincollision, "radius")
@@ -732,7 +748,11 @@ class OBJECT_PT_ChainCollisionSubDataPanel(Panel):
 	@classmethod
 	def poll(self,context):
 		
-		return context and context.object.mode == "OBJECT" and ((context.active_object.get("TYPE",None) == "RE_CHAIN_COLLISION_SINGLE" or context.active_object.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_ROOT") and context.active_object.re_chain_chaincollision.subDataCount == 1)
+		if not (context and context.object.mode == "OBJECT") or context.active_object.re_chain_chaincollision.subDataCount != 1:
+			return False
+		objType = context.active_object.get("TYPE",None)
+		#Boxes and planes only in a chain file: a CLSP entry has no subdata
+		return objType in ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT") or (objType in ("RE_CHAIN_COLLISION_BOX","RE_CHAIN_COLLISION_PLANE") and isChainCollision(context.active_object))
 
 	def draw(self, context):
 		layout = self.layout

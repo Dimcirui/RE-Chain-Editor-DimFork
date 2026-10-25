@@ -8,6 +8,8 @@ from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree
 from .re_chain_type_sync import DUPLICATE_SUFFIX
+from .re_chain_shapes import (NO_JOINT_HASH,boneNameHash,storePairJoint,pairJointHash,
+	createPlaneCollision,planeCollisionData,createBoxCollision,boxCollisionData)
 
 
 #TODO Clean this up, most of it is copied from chain stuff and a lot is redundant
@@ -307,65 +309,16 @@ def lockObjTransforms(obj,lockLocation = True,lockRotation = True,lockScale = Tr
 chainShapeEnumTranslationDict = {
 	0:"1",#Sphere
 	1:"2",#Capsule
+	2:"3",#Box (OBB)
 	3:"5",#Tapered Capsule
 	4:"4",#Plane
 	"1":0,
 	"2":1,
+	"3":2,
 	"5":3,
 	"4":4
 	}
-NO_JOINT_HASH = 2180083513#0x81F16F39, a joint field's "none": the shape hangs from its owner (the armature object)
-
-#A plane (kind 4): normal n at +0x20, d at +0x2c,
-#carried by its joint (or, with no joint, by the owner Transform): the plane is through n * -d along n.
-#In Blender: a wire plane whose local Z is n and whose origin is n * -d, in its bone's space (Child Of, like the
-#other shapes' offsets) or, with no joint, in the armature object's space (game y up -> Blender z up).
-def createPlaneCollision(name,collection,armature,jointName,normal,d):
-	from mathutils import Vector
-	mesh = bpy.data.meshes.new(name)
-	mesh.from_pydata([(-1,-1,0),(1,-1,0),(1,1,0),(-1,1,0),(0,0,0),(0,0,0.25)],[(4,5)],[(0,1,2,3)])
-	planeObj = bpy.data.objects.new(name,mesh)
-	collection.objects.link(planeObj)
-	planeObj["TYPE"] = "RE_CHAIN_COLLISION_PLANE"
-	planeObj.display_type = "WIRE"
-	planeObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawCollisionsThroughObjects
-	n = Vector(normal)
-	if jointName == None:
-		n = Vector((n[0],-n[2],n[1]))
-	n = n.normalized() if n.length > 0 else Vector((0.0,0.0,1.0))
-	planeObj.rotation_mode = "QUATERNION"
-	planeObj.rotation_quaternion = Vector((0.0,0.0,1.0)).rotation_difference(n)
-	planeObj.location = n * -d
-	if jointName == None:
-		planeObj.parent = armature
-	else:
-		constraint = planeObj.constraints.new(type = "CHILD_OF")
-		constraint.target = armature
-		constraint.subtarget = jointName
-		constraint.name = "BoneName"
-		constraint.use_scale_x = False
-		constraint.use_scale_y = False
-		constraint.use_scale_z = False
-	planeObj.re_chain_chaincollision.chainCollisionShape = "4"
-	return planeObj
-
-def planeCollisionData(planeObj):
-	"""(joint hash, normal, d) of a plane collision object, in the file's terms."""
-	from mathutils import Vector
-	m = planeObj.matrix_basis
-	n = (m.to_quaternion() @ Vector((0.0,0.0,1.0))).normalized()
-	p = m.translation
-	constraint = planeObj.constraints.get("BoneName")
-	if constraint != None and constraint.subtarget != "":
-		if "HASH_" in constraint.subtarget:
-			jointHash = int(constraint.subtarget.split("HASH_")[1])
-		else:
-			jointHash = hash_wide(constraint.subtarget)
-	else:
-		jointHash = NO_JOINT_HASH
-		n, p = Vector((n[0],n[2],-n[1])), Vector((p[0],p[2],-p[1]))#Blender z up -> game y up
-	return jointHash, n, -n.dot(p)
-CLSP_COLLISION_TYPES = ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_PLANE")
+CLSP_COLLISION_TYPES = ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX")
 def migrateCLSPCollectionTypes():
 	#Create Chain Header with the CLSP type used to type the new collection RE_CHAIN_COLLECTION
 	#Retypes those as RE_CLSP_COLLECTION; only a collection that is certainly a CLSP: named .clsp, no chain header, at least one collision
@@ -450,7 +403,7 @@ def importCLSPFile(filepath,options):
 		if chainCollision.pairJointNameHash in boneHashDict:
 			pairJointName = boneHashDict[chainCollision.pairJointNameHash].name
 		else:
-			if chainCollision.chainCollisionShape != 0:
+			if chainCollision.chainCollisionShape != 0 and chainCollision.pairJointNameHash != NO_JOINT_HASH:
 				missingHashWarning = True
 			pairJointName = "HASH_"+str(chainCollision.pairJointNameHash)
 		#print(chainCollision)
@@ -496,6 +449,8 @@ def importCLSPFile(filepath,options):
 			modifier.node_group = nodeGroup
 			colSphereObj.re_chain_chaincollision.clspBitFlag0 = chainCollision.unknBitFlag0
 			colSphereObj.re_chain_chaincollision.clspBitFlag1 = chainCollision.unknBitFlag1
+			#Shipped spheres carry no pair joint, their own joint or another bone; what the game does with it is unknown, so keep it
+			storePairJoint(colSphereObj,chainCollision.jointNameHash,chainCollision.pairJointNameHash,pairJointName,NO_JOINT_HASH)
 			#modifier["Input_0"] = colSphereObj
 		elif shape == "CAPSULE" or shape == "TCAPSULE":#CAPSULE
 			
@@ -587,6 +542,12 @@ def importCLSPFile(filepath,options):
 											(chainCollision.x1,chainCollision.y1,chainCollision.z1),chainCollision.collisionCapsuleStartRadius)
 			planeObj.re_chain_chaincollision.clspBitFlag0 = chainCollision.unknBitFlag0
 			planeObj.re_chain_chaincollision.clspBitFlag1 = chainCollision.unknBitFlag1
+		elif shape == "BOX":
+			name = "COL_" +str(currentCollisionIndex).zfill(2)+ "_BOX " + (jointName if chainCollision.jointNameHash != NO_JOINT_HASH else "(owner)")
+			rows,halfExtents = chainCollision.getBox()
+			boxObj = createBoxCollision(name,collisionCollection,armature,None if chainCollision.jointNameHash == NO_JOINT_HASH else jointName,rows,halfExtents)
+			boxObj.re_chain_chaincollision.clspBitFlag0 = chainCollision.unknBitFlag0
+			boxObj.re_chain_chaincollision.clspBitFlag1 = chainCollision.unknBitFlag1
 		else:
 			raiseWarning(f"Unsupported collision shape ({shape}) on collision {str(collisionIndex)}, skipping...")
 	bpy.context.view_layer.update()
@@ -642,10 +603,11 @@ def clspStructureErrors(chainCollection):
 			else:
 				errorList.append("Child of constraint missing on " + obj.name)        
 		
-		elif obj.get("TYPE",None) == "RE_CHAIN_COLLISION_PLANE":
+		elif obj.get("TYPE",None) in ("RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX"):
 			if obj.constraints.get("BoneName",False):
 				if obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
-					errorList.append("Invalid child of constraint on " + obj.name + " (remove it for a plane on the armature object itself)")
+					shapeName = "plane" if obj["TYPE"] == "RE_CHAIN_COLLISION_PLANE" else "box"
+					errorList.append("Invalid child of constraint on " + obj.name + f" (remove it for a {shapeName} on the armature object itself)")
 		elif obj.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
 			
 			#if obj.re_chain_chaincollision.chainCollisionShape != "2" and obj.re_chain_chaincollision.chainCollisionShape != "0":#Capsule OR None
@@ -749,8 +711,9 @@ def buildCLSPFile(chainCollection,version,fixScene = True,warn = raiseWarning):
 		"RE_CHAIN_COLLISION_SINGLE",
 		"RE_CHAIN_COLLISION_CAPSULE_ROOT",
 		"RE_CHAIN_COLLISION_PLANE",
+		"RE_CHAIN_COLLISION_BOX",
 		]
-	
+
 	for obj in objList:
 		objType = obj.get("TYPE",None)
 		if objType in collisionTypes:
@@ -773,7 +736,10 @@ def buildCLSPFile(chainCollection,version,fixScene = True,warn = raiseWarning):
 	for chainCollisionObj in chainCollisionObjList:
 		shape,collisionOffset,endCollisionOffset,radius,endRadius = clspCollisionValues(chainCollisionObj,fromProperties = fixScene)
 		translatedShapeType = chainShapeEnumTranslationDict.get(shape,-1)
-		if translatedShapeType != -1:
+		objType = chainCollisionObj["TYPE"]
+		#Each CLSP shape is written from its own kind of object; any other pairing (an OBB or plane sphere from a chain file) has nothing to write
+		if (translatedShapeType,objType) in ((0,"RE_CHAIN_COLLISION_SINGLE"),(1,"RE_CHAIN_COLLISION_CAPSULE_ROOT"),(3,"RE_CHAIN_COLLISION_CAPSULE_ROOT"),
+											(2,"RE_CHAIN_COLLISION_BOX"),(4,"RE_CHAIN_COLLISION_PLANE")):
 			clspEntry = CLSPEntry()
 			clspEntry.chainCollisionShape = translatedShapeType
 			clspEntry.x1 = collisionOffset[0]
@@ -785,38 +751,33 @@ def buildCLSPFile(chainCollection,version,fixScene = True,warn = raiseWarning):
 			clspEntry.unknBitFlag0 = chainCollisionObj.re_chain_chaincollision.clspBitFlag0
 			clspEntry.unknBitFlag1 = chainCollisionObj.re_chain_chaincollision.clspBitFlag1
 			#Plane
-			if translatedShapeType == 4 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_PLANE":
+			if translatedShapeType == 4:
 				clspEntry.jointNameHash, n, d = planeCollisionData(chainCollisionObj)
 				clspEntry.pairJointNameHash = NO_JOINT_HASH
 				clspEntry.x1, clspEntry.y1, clspEntry.z1 = n[0], n[1], n[2]
 				clspEntry.x2, clspEntry.y2, clspEntry.z2 = 0.0, 0.0, 0.0
 				clspEntry.collisionCapsuleStartRadius = d
+			#Box
+			elif translatedShapeType == 2:
+				clspEntry.jointNameHash, rows, halfExtents = boxCollisionData(chainCollisionObj)
+				clspEntry.pairJointNameHash = clspEntry.jointNameHash
+				clspEntry.setBox(rows,halfExtents)
 			#Sphere
-			elif translatedShapeType == 0 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_SINGLE":
+			elif translatedShapeType == 0:
 				clspEntry.collisionCapsuleStartRadius = radius
-				if "HASH_" in chainCollisionObj.constraints["BoneName"].subtarget:
-					clspEntry.jointNameHash = int(chainCollisionObj.constraints["BoneName"].subtarget.split("HASH_")[1])
-				else:
-					clspEntry.jointNameHash = hash_wide(chainCollisionObj.constraints["BoneName"].subtarget)
-				clspEntry.pairJointNameHash = 2180083513
+				clspEntry.jointNameHash = boneNameHash(chainCollisionObj.constraints["BoneName"].subtarget)
+				clspEntry.pairJointNameHash = pairJointHash(chainCollisionObj,clspEntry.jointNameHash,NO_JOINT_HASH)
 			#Capsule/Tapered Capsule
-			elif translatedShapeType == 1 or translatedShapeType == 3 and chainCollisionObj["TYPE"] == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
-				
+			else:
+
 				for child in chainCollisionObj.children: 
 					if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
 						startCapsule = child
 					elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
 						endCapsule = child
-				if "HASH_" in startCapsule.constraints["BoneName"].subtarget:
-					clspEntry.jointNameHash = int(startCapsule.constraints["BoneName"].subtarget.split("HASH_")[1])
-				else:
-					clspEntry.jointNameHash = hash_wide(startCapsule.constraints["BoneName"].subtarget)
-					
-				if "HASH_" in startCapsule.constraints["BoneName"].subtarget:
-					clspEntry.pairJointNameHash = int(endCapsule.constraints["BoneName"].subtarget.split("HASH_")[1])
-				else:
-					clspEntry.pairJointNameHash = hash_wide(endCapsule.constraints["BoneName"].subtarget)
-					
+				clspEntry.jointNameHash = boneNameHash(startCapsule.constraints["BoneName"].subtarget)
+				clspEntry.pairJointNameHash = boneNameHash(endCapsule.constraints["BoneName"].subtarget)
+
 				if translatedShapeType == 1:
 					clspEntry.collisionSphereRadius = radius
 				else:

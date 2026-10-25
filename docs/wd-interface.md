@@ -16,7 +16,7 @@ Every chain, chain2 or CLSP file is one root collection. Import and *Create Chai
 
 The file format is told by the collection name: a name ending in `.chain2` is chain2, `.chain` is the old format, `.clsp` is CLSP (Blender's `.001` suffixes are ignored).
 
-Older versions of *Create Chain Header* typed new CLSP collections `RE_CHAIN_COLLECTION`. When a .blend is opened, and once when the add-on is enabled, such collections are retyped `RE_CLSP_COLLECTION`. Only a collection that is certainly a CLSP is retyped: its name ends in `.clsp`, it has no `RE_CHAIN_HEADER` object, and it has at least one collision object (`RE_CHAIN_COLLISION_SINGLE`, `RE_CHAIN_COLLISION_CAPSULE_ROOT` or `RE_CHAIN_COLLISION_PLANE`). Each retyped collection is printed to the console. A mistyped collection that fails these checks (for example, an empty one) keeps its type; `wd_api` still exports it as CLSP because of its name.
+Older versions of *Create Chain Header* typed new CLSP collections `RE_CHAIN_COLLECTION`. When a .blend is opened, and once when the add-on is enabled, such collections are retyped `RE_CLSP_COLLECTION`. Only a collection that is certainly a CLSP is retyped: its name ends in `.clsp`, it has no `RE_CHAIN_HEADER` object, and it has at least one collision object (`RE_CHAIN_COLLISION_SINGLE`, `RE_CHAIN_COLLISION_CAPSULE_ROOT`, `RE_CHAIN_COLLISION_PLANE` or `RE_CHAIN_COLLISION_BOX`). Each retyped collection is printed to the console. A mistyped collection that fails these checks (for example, an empty one) keeps its type; `wd_api` still exports it as CLSP because of its name.
 
 All data of a file is on objects in the root collection or its child collections (`collection.all_objects`); nothing is stored on the scene, world or other collections. Child collections made by the editor (`Chain Collisions - …`, `Chain Links - …`, `Node Capsules - …`) only organise objects.
 
@@ -61,7 +61,8 @@ Every object the editor makes has a custom property `TYPE`. Records of the same 
 | `RE_CHAIN_COLLISION_CAPSULE_ROOT` | Two-joint capsule, holds the properties | header (chain) / none (CLSP) | `re_chain_chaincollision` | Collision / CLSP entry |
 | `RE_CHAIN_COLLISION_CAPSULE_START` | Capsule start | capsule root | none | Joint, position, radius |
 | `RE_CHAIN_COLLISION_CAPSULE_END` | Capsule end | capsule root | none | Pair joint, pair position, end radius |
-| `RE_CHAIN_COLLISION_PLANE` | Plane (CLSP only) | none or the armature | `re_chain_chaincollision` | CLSP entry, shape 4 |
+| `RE_CHAIN_COLLISION_PLANE` | Plane: a wire square, normal along local Z (CLSP) or local Y (chain, custom property `planeNormalAxis` = `"Y"`) | header (chain) / none or the armature (CLSP) | `re_chain_chaincollision` | Collision shape 4 / CLSP entry, shape 4 |
+| `RE_CHAIN_COLLISION_BOX` | Box (OBB): a wire cube from -1 to 1 | header (chain) / none or the armature (CLSP) | `re_chain_chaincollision` | Collision shape 3 / CLSP entry, shape 2 |
 | `RE_CHAIN_LINK` | Chain link | header | `re_chain_chainlink` | Link |
 | `RE_CHAIN_LINK_COLLISION` | Collision of one node pair of a link | link | `re_chain_chainlink_collision` | Link node |
 | `RE_CHAIN_NODE_FRAME_HELPER`, `RE_CHAIN_NODE_CAPSULE` | Display only | | | not exported |
@@ -70,7 +71,7 @@ Single collisions and capsule roots also have `re_chain_collision_subdata` (chai
 
 ### Bones
 
-Objects that follow a bone have a Child Of constraint named `BoneName`; its `subtarget` is the bone. Joint hashes in the file are `pymmh3.hash_wide(bone name)`. A subtarget `HASH_<number>` (CLSP; a bone missing from the armature) is written as that number. In chain collisions a `b<digits>:` prefix on the bone name is dropped before hashing. A CLSP plane without the constraint hangs from the armature object (joint hash `0x81F16F39`).
+Objects that follow a bone have a Child Of constraint named `BoneName`; its `subtarget` is the bone. Joint hashes in the file are `pymmh3.hash_wide(bone name)`. A subtarget `HASH_<number>` (CLSP; a bone missing from the armature) is written as that number. A `b<digits>:` prefix on the bone name is dropped before hashing (chain collisions and, since API 2, CLSP shapes). A plane or box without the constraint has joint hash `0x81F16F39` (the owner): a CLSP one hangs from the armature object, a chain one from the chain header, and its transform is in that object's space, Blender z up, written y up.
 
 ### IDs and links between records
 
@@ -161,6 +162,11 @@ Chain collisions (chain and chain2):
 | `endCollisionOffset` | `pairPosX/Y/Z` of a single collision |
 | single: object `location`, `scale[0]`, `rotation_quaternion` | `posX/Y/Z`, `radius`, `rotOffsetX/Y/Z/W` |
 | capsule: start object `location`, `scale[0]`, `rotation_quaternion`; end object `location` | `posX/Y/Z`, `radius`, `rotOffset…`; `pairPosX/Y/Z` |
+| box (shape `3`): object `location`, `rotation_quaternion`, `scale` | `posX/Y/Z` (centre), `rotOffsetX/Y/Z/W`, `pairPosX/Y/Z` (half extents). `radius` and `endRadius` keep the properties' values |
+| plane (shape `4`): object `location`, `rotation_quaternion`; `endCollisionOffset` | `posX/Y/Z` (a point on the plane), `rotOffsetX/Y/Z/W` (the normal is its +Y), `pairPosX/Y/Z`. A plane with `planeNormalAxis` unset (a CLSP plane object) is turned so its local Z is written as +Y |
+| box, plane: custom property `pairJoint` | `pairJointNameHash`, as for CLSP spheres below; none is `0` |
+| box, plane with no joint: custom property `ownerJointHash` | `jointNameHash`: `0x81F16F39` or `0` (both mean the owner in shipped files), stored as a signed 32-bit int (Blender's int properties) and written `& 0xFFFFFFFF`; missing is `0x81F16F39` |
+| custom property `fileRotationOrder` | `rotationOrder` when the file's value isn't one of the enum's (shipped files have `0xFFFFFFFF`), stored signed like `ownerJointHash`; written while `rotationOrder` is left at `"0"` |
 
 A capsule whose start and end radii differ is written as a tapered capsule (shape `5`) in chain2 and .chain version 46 and later; older .chain versions get a plain capsule (shape `2`). `collisionOffset`, `radius`, `endCollisionOffset` mirror the objects for the UI; export reads the objects.
 
@@ -168,12 +174,14 @@ CLSP entries:
 
 | Property / object | CLSP field |
 |---|---|
-| `chainCollisionShape` | `chainCollisionShape`: `"1"` sphere → 0, `"2"` capsule → 1, `"5"` tapered capsule → 3, `"4"` plane → 4; other shapes are skipped |
+| `chainCollisionShape` | `chainCollisionShape`: `"1"` sphere → 0, `"2"` capsule → 1, `"5"` tapered capsule → 3, `"3"` box (OBB) → 2, `"4"` plane → 4; any other shape, or a shape on another kind of object (an OBB or plane `RE_CHAIN_COLLISION_SINGLE` from a chain file), is skipped |
 | `clspBitFlag0`, `clspBitFlag1` | `unknBitFlag0`, `unknBitFlag1` |
 | sphere: object `location`, `scale[0]`; `endCollisionOffset` | `x1/y1/z1`, `collisionCapsuleStartRadius`; `x2/y2/z2` |
+| sphere: custom property `pairJoint` | `pairJointNameHash`: a bone name (or `HASH_<number>`), `"<self>"` for the sphere's own bone, missing or empty for none (`0x81F16F39`). Import sets it from the file; what the game does with a sphere's pair joint is unknown |
 | capsule: start `location`, end `location`, start `scale[0]` | `x1/y1/z1`, `x2/y2/z2`, `collisionSphereRadius` (capsule) or `collisionCapsuleStartRadius` (tapered) |
 | tapered capsule: end `scale[0]` | `collisionCapsuleEndRadius` |
-| plane: object `matrix_basis` (own transform) | normal in `x1/y1/z1`, distance in `collisionCapsuleStartRadius` |
+| plane: object `matrix_basis` (own transform) | normal (local Z, or local Y with `planeNormalAxis` = `"Y"`) in `x1/y1/z1`, distance in `collisionCapsuleStartRadius` |
+| box: object `matrix_basis` without its scale; its `scale` | +0x20 to +0x5f: 4x4 matrix, translation in the last row (rows 0-2 the box's axes, row 3 its centre); +0x60: half extents. Both joint fields are the box's joint |
 
 ### `re_chain_collision_subdata` (chain collision subdata, when `subDataCount` is set)
 
@@ -206,3 +214,4 @@ Its `RE_CHAIN_LINK_COLLISION` children, in name order, are the link's node entri
 - **1** (same API version, no rename): `~ASSETPATH` also follows the target of each file export, and is removed when a file is exported outside a `natives` folder. Before, only import wrote it.
 - **1** (same API version): bug fix, the one exception to "`~TYPE` never changes". CLSP collections that older versions of *Create Chain Header* typed `RE_CHAIN_COLLECTION` are retyped `RE_CLSP_COLLECTION` when a file is opened or the add-on is enabled (see [Collections](#collections) for the exact checks). New CLSP collections are typed correctly from the start.
 - **2**: `export_bytes` takes `as_format` (`"chain2"`, `"clsp"`). Calls without it give the same bytes as before.
+- **2** (same API version, addition): CLSP boxes (shape 2) are imported as `RE_CHAIN_COLLISION_BOX` objects and exported. Before, import dropped them. A sphere's pair joint is kept in `pairJoint`; before, export always wrote none. Chain and chain2 OBBs (shape 3) and planes (shape 4) are imported as `RE_CHAIN_COLLISION_BOX` / `RE_CHAIN_COLLISION_PLANE` objects too; before, they were `RE_CHAIN_COLLISION_SINGLE` spheres, or capsules when their pair joint was set. Bug fixes: a chain sphere's `pairPos` is imported into `endCollisionOffset` (export wrote 0 before), and a collision with a `rotationOrder` outside the enum no longer stops the import. CLSP joint hashes drop a `b<digits>:` bone name prefix, as import already matched them.

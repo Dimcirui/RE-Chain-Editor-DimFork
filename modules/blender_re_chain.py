@@ -8,6 +8,7 @@ from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,g
 from .file_re_chain import readREChain,writeREChain
 from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
 from .pymmh3 import hash_wide
+from .re_chain_shapes import CHAIN_NO_JOINT_HASHES,OWNER_JOINT_HASH,toSigned32,createChainShapeCollision,storePairJoint
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_cfil import cfilWarnings
 from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
@@ -459,6 +460,8 @@ def importChainFile(filepath,options,isChain2 = False):
 
 	#Pre check to see that all collision bone hashes match to bones
 	for collisionIndex,chainCollision in enumerate(chainFile.ChainCollisionList):
+		if chainCollision.chainCollisionShape in (3,4) and chainCollision.jointNameHash in CHAIN_NO_JOINT_HASHES:
+			continue#An OBB or plane with no joint hangs from the owner
 		if chainCollision.jointNameHash not in boneHashDict:
 			raiseWarning("Collision Entry " + str(collisionIndex) + ": Joint hash ("+str(chainCollision.jointNameHash)+") does not match to any bones on the armature. The armature may be missing bones.")
 			removedItems.append(chainCollision)
@@ -826,7 +829,22 @@ def importChainFile(filepath,options,isChain2 = False):
 			subName = "COL_"+str(currentCollisionIndex).zfill(2)
 		
 		shape = enumItemDict[chainCollision.chainCollisionShape]
-		
+
+		#OBB and plane: their own objects (re_chain_shapes), on their joint or with no joint on the header; the pair joint is only kept
+		if shape in ("OBB","PLANE") and (chainCollision.jointNameHash in boneHashDict or chainCollision.jointNameHash in CHAIN_NO_JOINT_HASHES):
+			jointName = None if chainCollision.jointNameHash in CHAIN_NO_JOINT_HASHES else boneHashDict[chainCollision.jointNameHash].name
+			name = subName + ("_BOX " if shape == "OBB" else "_PLANE ") + (jointName if jointName != None else "(owner)")
+			shapeObj = createChainShapeCollision(name,collisionCollection,headerObj,armature,jointName,str(chainCollision.chainCollisionShape),
+				(chainCollision.posX,chainCollision.posY,chainCollision.posZ),(chainCollision.rotOffsetW,chainCollision.rotOffsetX,chainCollision.rotOffsetY,chainCollision.rotOffsetZ),
+				(chainCollision.pairPosX,chainCollision.pairPosY,chainCollision.pairPosZ))
+			getChainCollision(chainCollision,shapeObj)
+			if jointName == None:
+				shapeObj[OWNER_JOINT_HASH] = toSigned32(chainCollision.jointNameHash)
+			shapeObj.re_chain_chaincollision.collisionOffset = (chainCollision.posX,chainCollision.posY,chainCollision.posZ)
+			shapeObj.re_chain_chaincollision.endCollisionOffset = (chainCollision.pairPosX,chainCollision.pairPosY,chainCollision.pairPosZ)
+			pairBone = boneHashDict.get(chainCollision.pairJointNameHash)
+			storePairJoint(shapeObj,chainCollision.jointNameHash,chainCollision.pairJointNameHash,pairBone.name if pairBone != None else "HASH_"+str(chainCollision.pairJointNameHash),0)
+			continue
 		if chainCollision.jointNameHash in boneHashDict and (chainCollision.pairJointNameHash in boneHashDict or chainCollision.pairJointNameHash == 0):
 			if (shape != "CAPSULE" and shape != "TCAPSULE") and chainCollision.pairJointNameHash == 0:
 				name = "COL_" +str(currentCollisionIndex).zfill(2)+ "_"+shape + " " + boneHashDict[chainCollision.jointNameHash].name
@@ -839,7 +857,8 @@ def importChainFile(filepath,options,isChain2 = False):
 				getChainCollision(chainCollision,colSphereObj)
 				colSphereObj.re_chain_chaincollision.chainCollisionShape = str(chainCollision.chainCollisionShape)
 				colSphereObj.re_chain_chaincollision.collisionOffset = (chainCollision.posX,chainCollision.posY,chainCollision.posZ)
-				colSphereObj.rotation_mode = "QUATERNION" 
+				colSphereObj.re_chain_chaincollision.endCollisionOffset = (chainCollision.pairPosX,chainCollision.pairPosY,chainCollision.pairPosZ)#Export writes it back as pairPos
+				colSphereObj.rotation_mode = "QUATERNION"
 				colSphereObj.rotation_quaternion = (chainCollision.rotOffsetW,chainCollision.rotOffsetX,chainCollision.rotOffsetY,chainCollision.rotOffsetZ)
 				
 				#colSphereObj.empty_display_type = "SPHERE"
@@ -1186,8 +1205,15 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 				if obj.constraints["BoneName"].target == "" or obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
 					errorList.append("Invalid child of constraint on " + obj.name)
 			else:
-				errorList.append("Child of constraint missing on " + obj.name)        
-		
+				errorList.append("Child of constraint missing on " + obj.name)
+
+		elif obj.get("TYPE",None) in ("RE_CHAIN_COLLISION_BOX","RE_CHAIN_COLLISION_PLANE"):
+			if obj.parent == None or obj.parent.get("TYPE",None) != "RE_CHAIN_HEADER":
+				errorList.append(obj.name + " object must be parented to a chain header object")
+			if obj.constraints.get("BoneName",False):
+				if obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
+					errorList.append("Invalid child of constraint on " + obj.name + " (remove it for a collision on the chain's owner)")
+
 		elif obj.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
 			if obj.parent != None:
 				if obj.parent.get("TYPE",None) != "RE_CHAIN_HEADER":
@@ -1361,8 +1387,10 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 	collisionTypes = [
 		"RE_CHAIN_COLLISION_SINGLE",
 		"RE_CHAIN_COLLISION_CAPSULE_ROOT",
+		"RE_CHAIN_COLLISION_BOX",
+		"RE_CHAIN_COLLISION_PLANE",
 		]
-	
+
 	for obj in objList:
 		objType = obj.get("TYPE",None)
 		if objType == "RE_CHAIN_HEADER":

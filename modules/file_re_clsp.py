@@ -1,5 +1,6 @@
 #Author: NSA Cloud
 
+import struct
 from .gen_functions import textColors,raiseWarning,raiseError,getPaddingAmount,read_uint,read_int,read_uint64,read_int64,read_float,read_ushort,read_ubyte,read_unicode_string,read_byte,read_short,write_uint,write_int,write_uint64,write_int64,write_float,write_ushort,write_ubyte,write_unicode_string,write_byte,write_short
 
 class CLSPHeader():
@@ -46,7 +47,8 @@ class CLSPEntry():
 		self.z2 = 0.0
 		self.collisionCapsuleEndRadius = 0.0
 		self.collisionSphereRadius = 0.0
-		
+		self.extraData = b'\x00'*44#+0x44 to the end of the entry, used by boxes
+
 	def read(self,file):
 		self.chainCollisionShape = read_uint(file)
 		self.jointNameHash = read_uint(file)
@@ -65,8 +67,20 @@ class CLSPEntry():
 		self.z2 = read_float(file)
 		self.collisionCapsuleEndRadius = read_float(file)
 		self.collisionSphereRadius = read_float(file)
-		file.seek(44,1)#box data when shape is 2
-	
+		self.extraData = file.read(44)
+
+	#A box (shape 2): +0x20 to +0x5f is a 4x4 matrix in its joint's space, translation in the last row
+	#(rows 0-2 are the box's axes, row 3 its centre), +0x60 the half extents along those axes, +0x6c padding
+	def getBox(self):
+		"""(4 rows of the box's matrix, half extents)"""
+		values = [self.x1,self.y1,self.z1,self.collisionCapsuleStartRadius,self.x2,self.y2,self.z2,self.collisionCapsuleEndRadius,self.collisionSphereRadius]
+		values += struct.unpack("<11f",self.extraData)
+		return [values[row*4:row*4+4] for row in range(4)],values[16:19]
+	def setBox(self,rows,halfExtents):
+		values = [value for row in rows for value in row] + list(halfExtents)
+		(self.x1,self.y1,self.z1,self.collisionCapsuleStartRadius,self.x2,self.y2,self.z2,self.collisionCapsuleEndRadius,self.collisionSphereRadius) = values[:9]
+		self.extraData = struct.pack("<10f",*values[9:]) + self.extraData[40:]
+
 	def write(self,file):
 		write_uint(file, self.chainCollisionShape)
 		write_uint(file, self.jointNameHash)
@@ -85,7 +99,7 @@ class CLSPEntry():
 		write_float(file, self.z2)
 		write_float(file, self.collisionCapsuleEndRadius)
 		write_float(file, self.collisionSphereRadius)
-		file.write(b'\x00'*44)
+		file.write(self.extraData)
 
 	def __str__(self):
 		return str(self.__class__) + ": " + str(self.__dict__)

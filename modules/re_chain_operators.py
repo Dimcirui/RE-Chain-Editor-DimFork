@@ -9,7 +9,8 @@ from bpy.types import Operator
 from .blender_re_chain import createEmpty,createCurve,alignChains,alignChainGroups,alignCollisions,checkNameUsage,checkChainSettingsIDUsage,checkWindSettingsIDUsage,findHeaderObj,syncCollisionOffsets,createChainCollection,getCollection,createCurveEmpty,createFakeEmptySphere,lockObjTransforms,setChainBoneColor
 from .file_re_chain import ChainHeaderData,ChainSettingsData,WindSettingsData,ChainGroupData,ChainNodeData,ChainJiggleData,ChainCollisionData,ChainLinkData,ChainLinkNode
 from .file_re_chain2 import Chain2HeaderData,Chain2SettingsData,Chain2WindSettingsData,Chain2GroupData,Chain2NodeData,Chain2JiggleData,Chain2CollisionData,Chain2LinkData,Chain2LinkNode
-from .re_chain_propertyGroups import angleLimitConeScale,getChainHeader,getWindSettings,getChainSettings,getChainGroup,getChainNode,getChainJiggle,getChainLink,getChainCollision,getChainLinkCollisionNode
+from .re_chain_shapes import createBoxCollision,createPlaneCollision,createChainShapeCollision
+from .re_chain_propertyGroups import isCLSPCollection,angleLimitConeScale,getChainHeader,getWindSettings,getChainSettings,getChainGroup,getChainNode,getChainJiggle,getChainLink,getChainCollision,getChainLinkCollisionNode
 from .ui_re_chain_panels import tag_redraw
 from .re_chain_names import FLAG_NAMES,flagLabel,pickName,BIT_FLAG_NAMES
 from .blender_utils import showErrorMessageBox,outlinerShowObject
@@ -243,13 +244,31 @@ class WM_OT_CollisionFromBones(Operator):
 		experimentalFeatures = bpy.context.scene.re_chain_toolpanel.experimentalPoseModeOptions
 		selected = bpy.context.selected_pose_bones
 		chainCollection = bpy.context.scene.re_chain_toolpanel.chainCollection
-		if chainCollection != None and chainCollection.name.endswith(".clsp"):
-			isCLSP = True
-		else:
-			isCLSP = False
+		isCLSP = isCLSPCollection(chainCollection)
 		headerObj = findHeaderObj(chainCollection)
 		if chainCollection != None and (headerObj != None or isCLSP):
-			shape = str(bpy.context.scene.re_chain_toolpanel.collisionShape)
+			shape = str(bpy.context.scene.re_chain_toolpanel.collisionShape) or "SPHERE"#Empty when the shape chosen in a chain collection isn't a CLSP shape
+			if shape in ("OBB","PLANE"):
+				#A box or plane is its own object on one bone
+				if selected == None or len(selected) != 1:
+					showErrorMessageBox("Select one bone to make a box or a plane.")
+					return {'FINISHED'}
+				bone = selected[0]
+				currentCollisionIndex = 0
+				while(checkNameUsage("COL_"+str(currentCollisionIndex).zfill(2),checkSubString=True)):
+					currentCollisionIndex +=1
+				name = "COL_"+str(currentCollisionIndex).zfill(2)+("_BOX " if shape == "OBB" else "_PLANE ") + bone.name
+				if isCLSP and shape == "OBB":
+					collisionObj = createBoxCollision(name,chainCollection,bone.id_data,bone.name,[(1,0,0,0),(0,1,0,0),(0,0,1,0),(0,0,0,1)],(0.1,0.1,0.1))
+				elif isCLSP:
+					collisionObj = createPlaneCollision(name,chainCollection,bone.id_data,bone.name,(0.0,0.0,1.0),0.0)
+				else:
+					collisionCollection = getCollection(f"Chain Collisions - {chainCollection.name}",chainCollection,makeNew = False)
+					collisionObj = createChainShapeCollision(name,collisionCollection,headerObj,bone.id_data,bone.name,"3" if shape == "OBB" else "4",(0.0,0.0,0.0),(1.0,0.0,0.0,0.0),(0.1,0.1,0.1))
+					getChainCollision(Chain2CollisionData() if isChain2 else ChainCollisionData(),collisionObj,isChain2)#The file's defaults for the other fields
+					collisionObj.re_chain_chaincollision.chainCollisionShape = "3" if shape == "OBB" else "4"
+				self.report({"INFO"},f"Created {collisionObj.name}.")
+				return {'FINISHED'}
 			if len(selected) == 1:
 				startBone = selected[0]
 				valid = True
@@ -1380,14 +1399,15 @@ class WM_OT_HideNonNodes(Operator):
 
 class WM_OT_HideNonCollisions(Operator):
 	bl_label = "Hide Non Collisions"
-	bl_description = "Hide all objects that aren't collision spheres or capsules to make selecting and configuring them easier. Press the \"Unhide All\" button to unhide or check the Viewports box in the Object tab under Visibility"
+	bl_description = "Hide all objects that aren't collision spheres, capsules, boxes or planes to make selecting and configuring them easier. Press the \"Unhide All\" button to unhide or check the Viewports box in the Object tab under Visibility"
 	bl_idname = "re_chain.hide_non_collisions"
 	bl_options = {'UNDO'}
 	def execute(self, context):
-		
+
 		for obj in bpy.context.scene.objects:
 			objType = obj.get("TYPE",None)
-			if objType == "RE_CHAIN_COLLISION_SINGLE" or objType == "RE_CHAIN_COLLISION_CAPSULE_ROOT" or objType == "RE_CHAIN_COLLISION_CAPSULE_START" or objType == "RE_CHAIN_COLLISION_CAPSULE_END" or objType == "RE_CHAIN_NODE_CAPSULE":
+			if objType in ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_CAPSULE_START","RE_CHAIN_COLLISION_CAPSULE_END","RE_CHAIN_NODE_CAPSULE",
+						   "RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX"):
 				obj.hide_viewport = False
 			else:
 				obj.hide_viewport = True

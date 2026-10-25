@@ -17,6 +17,7 @@ import struct
 from .pymmh3 import hash_wide
 
 from .file_re_chain2 import Chain2SettingsSubData
+from .re_chain_shapes import chainShapeData,pairJointHash,toSigned32
 
 from .re_chain_presets import reloadPresets
 from .re_chain_names import LINK_MODE_NAMES,useLegacyNames
@@ -270,9 +271,11 @@ def update_NodeRadius(self, context):
 			updateNodeCapsule(obj)
 
 
+#A box or plane object is its own transform (re_chain_shapes); its radius and offsets are only the file's values
+SHAPE_OBJECT_TYPES = ("RE_CHAIN_COLLISION_BOX","RE_CHAIN_COLLISION_PLANE")
 def update_CollisionRadius(self, context):
 	obj = self.id_data
-	if type(obj).__name__ == "Object":#Check if it's an object to prevent issues with clipboard 
+	if type(obj).__name__ == "Object" and obj.get("TYPE",None) not in SHAPE_OBJECT_TYPES:#Check if it's an object to prevent issues with clipboard 
 		if obj.get("TYPE",None) != "RE_CHAIN_COLLISION_CAPSULE_ROOT":
 			#if obj.re_chain_chaincollision.radius != 0:
 				#obj.empty_display_size = obj.re_chain_chaincollision.radius# * 100
@@ -308,7 +311,9 @@ def update_CollisionNameVis(self, context):
 	collisionTypes = [
 		"RE_CHAIN_COLLISION_SINGLE",
 		"RE_CHAIN_COLLISION_CAPSULE_START",
-		"RE_CHAIN_COLLISION_CAPSULE_END"]
+		"RE_CHAIN_COLLISION_CAPSULE_END",
+		"RE_CHAIN_COLLISION_PLANE",
+		"RE_CHAIN_COLLISION_BOX"]
 	for obj in bpy.data.objects:
 		if obj.get("TYPE",None) in collisionTypes:
 			obj.show_name = self.showCollisionNames
@@ -333,6 +338,8 @@ def update_DrawCollisionsThroughObjects(self, context):
 		#"RE_CHAIN_COLLISION_CAPSULE_END",
 		"RE_CHAIN_COLLISION_CAPSULE_ROOT",
 		"RE_CHAIN_NODE_CAPSULE",
+		"RE_CHAIN_COLLISION_PLANE",
+		"RE_CHAIN_COLLISION_BOX",
 		]
 	for obj in bpy.data.objects:
 		if obj.get("TYPE",None) in collisionTypes:
@@ -348,6 +355,8 @@ def update_DrawLinkCollisionsThroughObjects(self, context):
 			obj.show_in_front = self.drawLinkCollisionsThroughObjects
 def update_CollisionOffset(self, context):
 	obj = self.id_data
+	if obj.get("TYPE",None) in SHAPE_OBJECT_TYPES:
+		return
 	if obj.get("TYPE",None) != "RE_CHAIN_COLLISION_CAPSULE_ROOT":
 		obj.location = obj.re_chain_chaincollision.collisionOffset# * 100
 	else:
@@ -357,6 +366,8 @@ def update_CollisionOffset(self, context):
 
 def update_EndCollisionOffset(self, context):
 	obj = self.id_data
+	if obj.get("TYPE",None) in SHAPE_OBJECT_TYPES:
+		return
 	if obj.get("TYPE",None) != "RE_CHAIN_COLLISION_CAPSULE_ROOT" and obj.get("TYPE",None) != "RE_CHAIN_COLLISION_SINGLE":
 		obj.location = obj.re_chain_chaincollision.endCollisionOffset# * 100
 	else:
@@ -606,6 +617,31 @@ def update_hideLastNodeAngleLimit(self, context):
 	for obj in bpy.data.objects:
 		if obj.get("TYPE",None) == "RE_CHAIN_NODE_FRAME_HELPER" and obj.get("isLastNode"):
 			obj.hide_viewport = self.hideLastNodeAngleLimit
+
+def isCLSPCollection(collection):
+	return collection != None and (collection.get("~TYPE",None) == "RE_CLSP_COLLECTION" or collection.name.endswith(".clsp"))
+
+#Shapes of Create Collision From Bone: a CLSP has five shape kinds, a chain or chain2 file every shape of its enum.
+#Each shape keeps its number in both lists, so the choice stays the same shape when the active collection changes.
+CHAIN_COLLISION_SHAPE_ITEMS = [
+	("SPHERE", "Sphere", "A sphere on the selected bone", 0),
+	("CAPSULE", "Capsule", "A capsule between the two selected bones (two bones always make a capsule)", 1),
+	("TCAPSULE", "Tapered Capsule", "A capsule between the two selected bones with its own end radius", 2),
+	("OBB", "OBB", "A box on the selected bone, drawn as a wire cube. Move and rotate it; its scale is its half extents", 3),
+	("PLANE", "Plane", "A plane through the selected bone with its normal along the object's Y. Remove its Child Of constraint for a plane on the chain's owner", 4),
+	("LINESPHERE", "Line Sphere", "Drawn as a sphere on the selected bone. How the game uses this shape is unknown", 5),
+	("LERPSPHERE", "Lerp Sphere", "Drawn as a sphere on the selected bone. How the game uses this shape is unknown", 6),
+	]
+CLSP_COLLISION_SHAPE_ITEMS = CHAIN_COLLISION_SHAPE_ITEMS[:3] + [
+	("OBB", "Box (OBB)", "A box on the selected bone, drawn as a wire cube. Move and rotate it; its scale is its half extents", 3),
+	("PLANE", "Plane", "A plane through the selected bone with its normal along the object's Z. Remove its Child Of constraint for a plane on the armature object itself", 4),
+	]
+def getCollisionShapeItems(self, context):
+	return CLSP_COLLISION_SHAPE_ITEMS if isCLSPCollection(self.chainCollection) else CHAIN_COLLISION_SHAPE_ITEMS
+def update_chainCollection(self, context):
+	if self.collisionShape == "":#A chain-only shape while a .clsp collection is active
+		self.collisionShape = "SPHERE"
+
 class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 	
 	def getChainGroupPresets(self,context):
@@ -625,15 +661,8 @@ class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 	
 	collisionShape: EnumProperty(
 		name="",
-		description="Set collision shape to be used by Create Collision From Bone button",
-		items=[("SPHERE", "Sphere", ""),
-			   ("CAPSULE", "Capsule", ""),
-			   ("TCAPSULE", "Tapered Capsule", ""),
-			   ("OBB", "OBB", ""),
-			   ("PLANE", "Plane", ""),
-			   ("LINESPHERE", "Line Sphere", ""),
-			   ("LERPSPHERE", "Lerp Sphere", ""),
-			   ]
+		description="Set collision shape to be used by Create Collision From Bone button. A .clsp collection offers the five CLSP shapes",
+		items=getCollisionShapeItems
 		)
 	
 	chainSettingsPresets: EnumProperty(
@@ -773,7 +802,8 @@ class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 		name="",
 		description = "Set the collection containing the chain file to edit.\nHint: Chain collections are orange.\nYou can create a new chain collection by pressing the \"Create Chain Header\" button.\nThis can also be set to a .clsp collection to create collisions for .clsp files",
 		type=bpy.types.Collection,
-		poll = filterChainCollection
+		poll = filterChainCollection,
+		update = update_chainCollection
 		)
 	chainSetting: bpy.props.PointerProperty(
 		name="",
@@ -2575,9 +2605,15 @@ class chainCollisionPropertyGroup(bpy.types.PropertyGroup):
 		default = 0,
 		)
 
+FILE_ROTATION_ORDER = "fileRotationOrder"
 def getChainCollision(ChainCollisionData,targetObject,isChain2 = False):
 	#Done manually to be able to account for chain version differences eventually
-	targetObject.re_chain_chaincollision.rotationOrder = str(ChainCollisionData.rotationOrder)
+	#A value the enum doesn't have (shipped files have -1) is kept as is and written back while the enum is left at 0
+	if str(ChainCollisionData.rotationOrder) in ("0","1","2","3","4","5"):
+		targetObject.re_chain_chaincollision.rotationOrder = str(ChainCollisionData.rotationOrder)
+	else:
+		targetObject.re_chain_chaincollision.rotationOrder = "0"
+		targetObject[FILE_ROTATION_ORDER] = toSigned32(ChainCollisionData.rotationOrder)
 	targetObject.re_chain_chaincollision.radius = ChainCollisionData.radius
 	targetObject.re_chain_chaincollision.endRadius = ChainCollisionData.endRadius
 	targetObject.re_chain_chaincollision.lerp = ChainCollisionData.lerp
@@ -2599,6 +2635,8 @@ def getChainCollision(ChainCollisionData,targetObject,isChain2 = False):
 def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False,syncUI = True):
 	#syncUI off leaves the collision's properties as they are (wd_api exports without writing to the scene)
 	ChainCollisionData.rotationOrder = int(targetObject.re_chain_chaincollision.rotationOrder)
+	if FILE_ROTATION_ORDER in targetObject and ChainCollisionData.rotationOrder == 0:
+		ChainCollisionData.rotationOrder = targetObject[FILE_ROTATION_ORDER] & 0xFFFFFFFF
 	ChainCollisionData.radius = targetObject.scale[0]
 	ChainCollisionData.endRadius = targetObject.re_chain_chaincollision.endRadius
 	ChainCollisionData.lerp = targetObject.re_chain_chaincollision.lerp
@@ -2618,8 +2656,19 @@ def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False,syncU
 	ChainCollisionData.pairPosX = targetObject.re_chain_chaincollision.endCollisionOffset[0]
 	ChainCollisionData.pairPosY = targetObject.re_chain_chaincollision.endCollisionOffset[1]
 	ChainCollisionData.pairPosZ = targetObject.re_chain_chaincollision.endCollisionOffset[2]
-	if targetObject.get("TYPE",None) != "RE_CHAIN_COLLISION_CAPSULE_ROOT":
-		ChainCollisionData.jointNameHash = hash_wide(targetObject.constraints["BoneName"].subtarget)		
+	if targetObject.get("TYPE",None) in SHAPE_OBJECT_TYPES:
+		#Box: pos, rotOffset, pairPos (half extents) from the object; plane: pos and rotOffset (normal +Y), pairPos the file's
+		isBox = targetObject["TYPE"] == "RE_CHAIN_COLLISION_BOX"
+		ChainCollisionData.chainCollisionShape = 3 if isBox else 4
+		ChainCollisionData.radius = targetObject.re_chain_chaincollision.radius
+		ChainCollisionData.jointNameHash,location,rotation,halfExtents = chainShapeData(targetObject)
+		ChainCollisionData.pairJointNameHash = pairJointHash(targetObject,ChainCollisionData.jointNameHash,0)
+		ChainCollisionData.posX,ChainCollisionData.posY,ChainCollisionData.posZ = location
+		ChainCollisionData.rotOffsetW,ChainCollisionData.rotOffsetX,ChainCollisionData.rotOffsetY,ChainCollisionData.rotOffsetZ = rotation
+		if isBox:
+			ChainCollisionData.pairPosX,ChainCollisionData.pairPosY,ChainCollisionData.pairPosZ = halfExtents
+	elif targetObject.get("TYPE",None) != "RE_CHAIN_COLLISION_CAPSULE_ROOT":
+		ChainCollisionData.jointNameHash = hash_wide(targetObject.constraints["BoneName"].subtarget)
 		ChainCollisionData.rotOffsetX = targetObject.rotation_quaternion[1]
 		ChainCollisionData.rotOffsetY = targetObject.rotation_quaternion[2]
 		ChainCollisionData.rotOffsetZ = targetObject.rotation_quaternion[3]

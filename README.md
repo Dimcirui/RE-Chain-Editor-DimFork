@@ -25,7 +25,10 @@ chain2 and clsp. See the original repository for installation and usage.
 **Collisions**
 
 - Capsule nodes are drawn as the capsule the game collides with, reaching toward the next node.
-- CLSP plane colliders: import and export.
+- Plane and box (OBB) colliders in CLSP, chain and chain2 files: import and export. A box is a wire cube whose scale is its half extents.
+- *Create Collision From Bone* offers the shapes of the active collection: a .clsp collection gets the five CLSP
+  shapes; Box and Plane make real boxes and planes on the selected bone in either kind of collection.
+- CLSP spheres keep their pair joint through import and export.
 - *Create Full Body CLSP* (Pose Mode panel) creates the full body CLSP of the MH Wilds player skeleton.
 - CLSP Flags A of groups and links can be set by ticking body parts of that CLSP.
 
