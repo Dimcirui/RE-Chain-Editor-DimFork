@@ -2,7 +2,7 @@
 
 What other add-ons can rely on: how chain, chain2 and CLSP data is stored in the scene, and the in-memory export in `wd_api`. The names below are a stable interface. Renaming one or changing what it means raises `wd_api.API_VERSION` and is recorded under [Changes](#changes).
 
-Current `API_VERSION`: **1**.
+Current `API_VERSION`: **2**.
 
 ## Collections
 
@@ -25,16 +25,17 @@ All data of a file is on objects in the root collection or its child collections
 `wd_api` is a module in the add-on package (`RE-Chain-Editor-DimFork.wd_api` as a legacy add-on). It is imported when the add-on is enabled, so it is in `sys.modules`.
 
 ```python
-API_VERSION = 1
+API_VERSION = 2
 COLLECTION_TYPES = ("RE_CHAIN_COLLECTION", "RE_CLSP_COLLECTION")
 
 class ExportError(Exception): ...   # str(err): problems, one per line; err.problems: the same as a list
 
-def export_bytes(collection, version=None) -> bytes: ...
+def export_bytes(collection, version=None, as_format=None) -> bytes: ...
 ```
 
 - `collection`: a `bpy.types.Collection` (or its name) typed as above.
-- `version`: the number at the end of the file name. `None` gives the MH Wilds version: chain2 **14**, CLSP **3**. Old-format .chain collections need an explicit version (MH Wilds doesn't use .chain).
+- `version`: the number at the end of the file name. `None` gives the MH Wilds version: chain2 **14**, CLSP **3**. Old-format .chain collections need an explicit version (MH Wilds doesn't use .chain), unless `as_format` turns them into chain2 or CLSP.
+- `as_format`: `None` writes the collection's own format. `"chain2"` writes a chain collection of either format as chain2. For an old-format .chain, the group attribute flags (each group's `attrFlags` and each chain settings' `groupDefaultAttr`) are moved to their chain2 bits: the two formats put them on different bits (Scene Colliders is `0x20000` in .chain and `0x10000` in chain2, Extra Tail Node `0x4` and `0x20000`). A flag chain2 doesn't have is dropped; a bit neither format names is kept. Fields only chain2 has take the objects' property values; fields only .chain has are left out. `"clsp"` writes the collision objects of a chain collection (either format) as a CLSP file, with each collision object's CLSP flags as its mask. A CLSP collection can't be exported as another format.
 - Returns exactly the bytes *Export RE Chain2* / *Export RE CLSP* would write for the same collection.
 - Writes no files and changes nothing: not the selection, active object, mode, frame, object names or properties. Export normally writes a few fixes back to the scene (unique wind/chain settings IDs, tapered capsule shapes, missing MH Wilds setting subdata, collision UI values); `export_bytes` works out the same result without writing them.
 - Reads only each object's own `location`, rotation and `scale` (never constraint-driven world matrices) and its properties, so animation playback doesn't change the result.
@@ -204,3 +205,4 @@ Its `RE_CHAIN_LINK_COLLISION` children, in name order, are the link's node entri
 - **1**: first version.
 - **1** (same API version, no rename): `~ASSETPATH` also follows the target of each file export, and is removed when a file is exported outside a `natives` folder. Before, only import wrote it.
 - **1** (same API version): bug fix, the one exception to "`~TYPE` never changes". CLSP collections that older versions of *Create Chain Header* typed `RE_CHAIN_COLLECTION` are retyped `RE_CLSP_COLLECTION` when a file is opened or the add-on is enabled (see [Collections](#collections) for the exact checks). New CLSP collections are typed correctly from the start.
+- **2**: `export_bytes` takes `as_format` (`"chain2"`, `"clsp"`). Calls without it give the same bytes as before.

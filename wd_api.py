@@ -8,8 +8,9 @@ import bpy
 from .modules.blender_re_chain import chainStructureErrors,buildChainFile
 from .modules.blender_re_clsp import clspStructureErrors,buildCLSPFile
 from .modules.re_chain_type_sync import chainFileTypeForCollection
+from .modules.re_chain_operators import chainGroupAttrFlags,chain2GroupAttrFlags
 
-API_VERSION = 1
+API_VERSION = 2
 COLLECTION_TYPES = ("RE_CHAIN_COLLECTION","RE_CLSP_COLLECTION")
 
 #File version used when export_bytes is not given one: the version MH Wilds reads
@@ -37,12 +38,31 @@ def collectionFormat(collection):
 		return "clsp" if ".clsp" in collection.name else "chain2"
 	return fileType
 
-def export_bytes(collection,version = None):
+def chainToChain2GroupAttr(value):
+	"""A .chain group attribute value with each flag moved to its chain2 bit. A flag chain2 lacks is dropped, a bit
+	neither format names is kept."""
+	source = chainGroupAttrFlags().flagDict
+	target = chain2GroupAttrFlags().flagDict
+	value &= 0xFFFFFFFF
+	known = 0
+	result = 0
+	for key,flag in source.items():
+		if value & flag["andFlag"]:
+			known |= flag["andFlag"]
+			if key in target:
+				result |= target[key]["andFlag"]
+	return result | (value & ~known)
+
+def export_bytes(collection,version = None,as_format = None):
 	"""Export a chain, chain2 or CLSP collection and return the file's bytes.
 
 	collection is a bpy.types.Collection (or its name) typed RE_CHAIN_COLLECTION or RE_CLSP_COLLECTION.
 	version is the file version (the number at the end of the file name); None gives the MH Wilds version
-	(chain2 14, CLSP 3). An old-format .chain collection needs a version.
+	(chain2 14, CLSP 3). An old-format .chain collection needs a version, unless as_format turns it into another format.
+	as_format: None writes the collection's own format. "chain2" writes a chain collection of either format as
+	chain2: an old-format .chain's group attribute flags (groups and the settings' Group Default Attribute) are moved
+	to their chain2 bits, the fields chain2 has and .chain doesn't take the objects' property values. "clsp" writes the
+	collision objects of a chain collection (either format) as a CLSP file.
 
 	Writes no files and changes nothing in the scene: the file is made from the objects' own location,
 	rotation and scale and their properties, not from constraint-driven world matrices, so playback doesn't
@@ -57,6 +77,13 @@ def export_bytes(collection,version = None):
 	if not isinstance(collection,bpy.types.Collection):
 		raise ExportError(f"Expected a collection, got {type(collection).__name__}.")
 	fileFormat = collectionFormat(collection)
+	sourceFormat = fileFormat
+	if as_format not in (None,"chain2","clsp"):
+		raise ExportError(f"Unknown export format: {as_format!r} (None, \"chain2\" or \"clsp\").")
+	if as_format != None and as_format != fileFormat:
+		if fileFormat == "clsp":
+			raise ExportError(f"{collection.name} is a CLSP collection; it can't be exported as {as_format}.")
+		fileFormat = as_format
 	if version == None:
 		version = DEFAULT_VERSIONS.get(fileFormat)
 		if version == None:
@@ -79,6 +106,11 @@ def export_bytes(collection,version = None):
 			if problems:
 				raise ExportError(problems)
 			fileData = buildChainFile(collection,version,isChain2 = fileFormat == "chain2",fixScene = False,warn = warnings.append)
+			if sourceFormat == "chain" and fileFormat == "chain2":
+				for group in fileData.ChainGroupList:
+					group.attrFlags = chainToChain2GroupAttr(group.attrFlags)
+				for settings in fileData.ChainSettingsList:
+					settings.groupDefaultAttr = chainToChain2GroupAttr(settings.groupDefaultAttr)
 		stream = io.BytesIO()
 		fileData.write(stream)
 	except ExportError:
