@@ -523,7 +523,9 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 		
 		if context.scene.re_chain_toolpanel.chainFileType == "chain":
 			col2.prop(re_chain_chaingroup, "extraNodeLocalPos")
-			col2.prop(re_chain_chaingroup, "collisionFilterFlags")
+			row = col2.row()
+			row.prop(re_chain_chaingroup, "collisionFilterFlags")
+			row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaingroup.collisionFilterFlags"
 		else:#chain2
 			col2.prop(re_chain_chaingroup, "interpCount")
 			col2.prop(re_chain_chaingroup, "nodeInterpolationMode")
@@ -615,7 +617,9 @@ class OBJECT_PT_ChainNodePanel(Panel):
 		greyed(col2,bounceOn).prop(re_chain_chainnode, "angleLimitRestitution")
 		greyed(col2,bounceOn).prop(re_chain_chainnode, "angleLimitRestituteStopSpeed")
 		col2.prop(re_chain_chainnode, "collisionRadius")
-		col2.prop(re_chain_chainnode, "collisionFilterFlags")
+		row = col2.row()
+		row.prop(re_chain_chainnode, "collisionFilterFlags")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainnode.collisionFilterFlags"
 		capsuleOn = not isChain2 or re_chain_chainnode.collisionShape == "2"
 		greyed(col2,capsuleOn).prop(re_chain_chainnode, "capsuleStretchRate0",slider = True)
 		greyed(col2,capsuleOn).prop(re_chain_chainnode, "capsuleStretchRate1",slider = True)
@@ -706,7 +710,9 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 		col2.prop(re_chain_chaincollision, "lerp") 
 		col2.prop(re_chain_chaincollision, "chainCollisionShape")
 		col2.prop(re_chain_chaincollision, "subDataCount")
-		col2.prop(re_chain_chaincollision, "collisionFilterFlags")
+		row = col2.row()
+		row.prop(re_chain_chaincollision, "collisionFilterFlags")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaincollision.collisionFilterFlags"
 		#col2.prop(re_chain_chaincollision, "subDataFlag")
 		
 		#A chain or chain2 collision record has no CLSP mask: these are written only by the clsp export
@@ -857,7 +863,9 @@ class OBJECT_PT_ChainLinkCollisionPanel(Panel):
 		col2.alignment='RIGHT'
 		col2.use_property_split = True
 		col2.prop(re_chain_chainlink, "collisionRadius")
-		col2.prop(re_chain_chainlink, "collisionFilterFlags") 
+		row = col2.row()
+		row.prop(re_chain_chainlink, "collisionFilterFlags")
+		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chainlink_collision.collisionFilterFlags"
 
 class OBJECT_PT_ChainVisibilityPanel(Panel):
 	bl_label = "RE Chain: Visibility"

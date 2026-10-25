@@ -90,3 +90,8 @@ FULL_BODY_CLSP_NAMES = [(0x1,"Hip_HJ_00",None),(0x2,"Spine_0",None),(0x4,"Spine_
 	(0x800000,"Hip_HJ_00 (second shape)",None)]
 BIT_FLAG_NAMES["re_chain_chaingroup.clspFlags0"] = FULL_BODY_CLSP_NAMES
 BIT_FLAG_NAMES["re_chain_chainlink.clspFlags0"] = FULL_BODY_CLSP_NAMES
+
+#Collision Filter Flags: the bits have no fixed meaning (a file picks its own), so each is listed by number
+FILTER_BIT_NAMES = [(1 << _i,f"bit{_i}",None) for _i in range(32)]
+for _target in ("re_chain_chaingroup","re_chain_chainnode","re_chain_chaincollision","re_chain_chainlink_collision"):
+	BIT_FLAG_NAMES[f"{_target}.collisionFilterFlags"] = FILTER_BIT_NAMES

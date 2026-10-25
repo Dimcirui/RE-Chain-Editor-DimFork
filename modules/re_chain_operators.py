@@ -2021,7 +2021,9 @@ class WM_OT_SetAttrFlags(Operator):
 	
 
 # The bit flag fields edited by re_chain.set_bit_flags: "property group.field" -> (object TYPE, [(bit, name, original name)])
-BIT_FLAG_OBJECT_TYPES = {"re_chain_chainlink":"RE_CHAIN_LINK","re_chain_header":"RE_CHAIN_HEADER","re_chain_chaingroup":"RE_CHAIN_CHAINGROUP"}
+BIT_FLAG_OBJECT_TYPES = {"re_chain_chainlink":("RE_CHAIN_LINK",),"re_chain_header":("RE_CHAIN_HEADER",),"re_chain_chaingroup":("RE_CHAIN_CHAINGROUP",),
+	"re_chain_chainnode":("RE_CHAIN_NODE",),"re_chain_chaincollision":("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT"),
+	"re_chain_chainlink_collision":("RE_CHAIN_LINK_COLLISION",)}
 BIT_FLAG_FIELDS = {target: (BIT_FLAG_OBJECT_TYPES[target.split(".")[0]], bits) for target, bits in BIT_FLAG_NAMES.items()}
 
 def _bitFlagProps():
@@ -2041,14 +2043,16 @@ class WM_OT_SetBitFlags(Operator):
 
 	@classmethod
 	def poll(self,context):
-		return context.active_object is not None and context.active_object.get("TYPE") in BIT_FLAG_OBJECT_TYPES.values()
+		return context.active_object is not None and any(context.active_object.get("TYPE") in objTypes for objTypes in BIT_FLAG_OBJECT_TYPES.values())
 
 	def draw(self,context):
 		layout = self.layout
-		groupName, propName, (objType, bits) = self._field()
+		groupName, propName, (objTypes, bits) = self._field()
+		#All 32 bits listed by number: a grid instead of one long column
+		rows = layout.grid_flow(columns=4,even_columns=True) if len(bits) == 32 else layout
 		known = 0
 		for bit, name, legacy in bits:
-			layout.prop(self, f"bit{bit.bit_length() - 1}", text=pickName(name,legacy))
+			rows.prop(self, f"bit{bit.bit_length() - 1}", text=pickName(name,legacy))
 			known |= bit
 		for i in range(32):
 			if self.shown & (1 << i) and not known & (1 << i):
@@ -2057,7 +2061,7 @@ class WM_OT_SetBitFlags(Operator):
 	def invoke(self,context,event):
 		if self.target not in BIT_FLAG_FIELDS:
 			return {'CANCELLED'}
-		groupName, propName, (objType, bits) = self._field()
+		groupName, propName, (objTypes, bits) = self._field()
 		value = getattr(getattr(context.active_object, groupName), propName)
 		self.shown = value
 		for i in range(32):
@@ -2067,13 +2071,13 @@ class WM_OT_SetBitFlags(Operator):
 	def execute(self, context):
 		if self.target not in BIT_FLAG_FIELDS:
 			return {'CANCELLED'}
-		groupName, propName, (objType, bits) = self._field()
+		groupName, propName, (objTypes, bits) = self._field()
 		listed = self.shown
 		for bit, name, legacy in bits:
 			listed |= bit
 		value = sum(1 << i for i in range(32) if listed & (1 << i) and getattr(self, f"bit{i}"))
 		#Apply to the active object and the selected objects of its type
-		targets = {context.active_object} | {obj for obj in context.selected_objects if obj.get("TYPE") == objType}
+		targets = {context.active_object} | {obj for obj in context.selected_objects if obj.get("TYPE") in objTypes}
 		for obj in targets:
 			propertyGroup = getattr(obj, groupName)
 			#Keep the bits the dialog did not list
