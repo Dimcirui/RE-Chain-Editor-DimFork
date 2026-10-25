@@ -2039,12 +2039,12 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 	
 	clspFlags0: IntProperty(
 		name = "CLSP Flags A",
-		description="Bit mask (with the other CLSP Flags field, one 64-bit mask) of the CLSP tag groups to collide with: a CLSP shape is used when its mask meets this one. -1 collides with every shape, 0 with none. It only matters with the group's Scene Colliders switch on (its own, or the setting's with Collision from Setting).\nVersion 52 and above only",
+		description="Bit mask (with the other CLSP Flags field, one 64-bit mask) of the CLSP tag groups to collide with: a CLSP shape is used when its mask meets this one. -1 collides with every shape, 0 with none. It only matters with the group's Scene Colliders switch on (its own, or the setting's with Collision from Setting).\nChain version 55 and above, and chain2 only",
 		default = -1,
 		)
 	clspFlags1: IntProperty(
 		name = "CLSP Flags B",
-		description="Bit mask (with the other CLSP Flags field, one 64-bit mask) of the CLSP tag groups to collide with: a CLSP shape is used when its mask meets this one. -1 collides with every shape, 0 with none. It only matters with the group's Scene Colliders switch on (its own, or the setting's with Collision from Setting).\nVersion 52 and above only",
+		description="Bit mask (with the other CLSP Flags field, one 64-bit mask) of the CLSP tag groups to collide with: a CLSP shape is used when its mask meets this one. -1 collides with every shape, 0 with none. It only matters with the group's Scene Colliders switch on (its own, or the setting's with Collision from Setting).\nChain version 55 and above, and chain2 only",
 		default = -1,
 		)
 	

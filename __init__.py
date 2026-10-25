@@ -24,7 +24,7 @@ from bpy.types import Operator, OperatorFileListElement,AddonPreferences
 
 from .modules.gen_functions import textColors
 from .modules.blender_utils import syncAssetPath
-from .modules.blender_re_chain import importChainFile,exportChainFile
+from .modules.blender_re_chain import importChainFile,exportChainFile,showCfilWarnings
 from .modules.re_chain_propertyGroups import chainToolPanelPropertyGroup,chainHeaderPropertyGroup,chainWindSettingsPropertyGroup,chainSettingsPropertyGroup,ChainSettingSubDataPropertyGroup,CHAIN_UL_ChainSettingsSubDataList,chainGroupPropertyGroup,chainSubGroupPropertyGroup,chainNodePropertyGroup,chainJigglePropertyGroup,chainCollisionPropertyGroup,chainClipboardPropertyGroup,chainLinkPropertyGroup,collisionSubDataPropertyGroup,chainLinkCollisionNodePropertyGroup,migrateFlagFields
 from bpy.app.handlers import persistent
 from .modules.ui_re_chain_panels import OBJECT_PT_ChainObjectModePanel,OBJECT_PT_ChainPoseModePanel,OBJECT_PT_ChainPresetPanel,OBJECT_PT_ChainHeaderPanel,OBJECT_PT_WindSettingsPanel,OBJECT_PT_ChainSettingsPanel,OBJECT_PT_ChainSettingsSubDataPanel,OBJECT_PT_ChainGroupPanel,OBJECT_PT_ChainSubGroupPanel,OBJECT_PT_ChainNodePanel,OBJECT_PT_ChainJigglePanel,OBJECT_PT_ChainCollisionPanel,OBJECT_PT_ChainClipboardPanel,OBJECT_PT_ChainLinkPanel,OBJECT_PT_ChainVisibilityPanel,OBJECT_PT_ChainCollisionSubDataPanel,OBJECT_PT_ChainLinkCollisionPanel,OBJECT_PT_NodeVisPanel,OBJECT_PT_CollisionVisPanel,OBJECT_PT_AngleLimitVisPanel,OBJECT_PT_ColorVisPanel
@@ -255,7 +255,11 @@ class ExportREChain(bpy.types.Operator, ExportHelper):
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportChainFile(self.filepath,options, chainVersion)
 		if success:
-			self.report({"INFO"},"Exported RE Chain successfully.")
+			cfilMessages = showCfilWarnings(bpy.data.collections[self.targetCollection],chainVersion,False)
+			if cfilMessages:
+				self.report({"WARNING"},"Exported, but " + cfilMessages[0])
+			else:
+				self.report({"INFO"},"Exported RE Chain successfully.")
 			bpy.data.collections[self.targetCollection]["BatchExport_path"] = self.filepath
 			syncAssetPath(bpy.data.collections[self.targetCollection],self.filepath)
 		else:
@@ -556,7 +560,11 @@ class ExportREChain2(bpy.types.Operator, ExportHelper):
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportChainFile(self.filepath,options, chainVersion,isChain2=True)
 		if success:
-			self.report({"INFO"},"Exported RE Chain successfully.")
+			cfilMessages = showCfilWarnings(bpy.data.collections[self.targetCollection],chainVersion,True)
+			if cfilMessages:
+				self.report({"WARNING"},"Exported, but " + cfilMessages[0])
+			else:
+				self.report({"INFO"},"Exported RE Chain successfully.")
 			#Add batch export entry to RE Toolbox if it doesn't already have one
 			
 			bpy.data.collections[self.targetCollection]["BatchExport_path"] = self.filepath

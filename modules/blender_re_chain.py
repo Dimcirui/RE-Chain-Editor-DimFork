@@ -9,6 +9,7 @@ from .file_re_chain import readREChain,writeREChain
 from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
+from .re_chain_cfil import cfilWarnings
 from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
 									  getWindSettings,
 									  getChainSettings,
@@ -1318,6 +1319,17 @@ def fixTaperedCapsules(chainCollisionObjList,version,isChain2):
 			startCapsule.name = startCapsule.name.replace("_TCAPSULE","_CAPSULE")
 			endCapsule.name = endCapsule.name.replace("_TCAPSULE","_CAPSULE")
 			endCapsule.scale = startCapsule.scale
+def showCfilWarnings(chainCollection,version,isChain2):
+	"""After an export: a popup listing the settings whose cfil path is another game's. Returns the messages."""
+	settingObjs = [obj for obj in chainCollection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"]
+	messages = cfilWarnings(settingObjs,version,isChain2)
+	if messages:
+		def draw(self,context):
+			for message in messages:
+				self.layout.label(text = message,icon = "ERROR")
+		bpy.context.window_manager.popup_menu(draw,title = "Collider Filter Info from another game",icon = "ERROR")
+	return messages
+
 def exportChainFile(filepath,options, version, isChain2 = False):
 	valid = chainErrorCheck(options["targetCollection"])
 	chainCollection = bpy.data.collections.get(options["targetCollection"],None)
@@ -1410,6 +1422,9 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 		windSettings.id = settingsIDDict[windSettingsObj.name]
 		newChainFile.WindSettingsList.append(windSettings)
 	
+	#A cfil path from another game keeps the character loading forever
+	for message in cfilWarnings(chainSettingsObjList,version,isChain2):
+		warn(message)
 	for chainSettingsObj in chainSettingsObjList:
 		if isChain2:
 			chainSettings = Chain2SettingsData()

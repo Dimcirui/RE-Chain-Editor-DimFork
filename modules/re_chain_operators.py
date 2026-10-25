@@ -14,6 +14,7 @@ from .ui_re_chain_panels import tag_redraw
 from .re_chain_names import FLAG_NAMES,flagLabel,pickName,BIT_FLAG_NAMES
 from .blender_utils import showErrorMessageBox,outlinerShowObject
 from .re_chain_presets import saveAsPreset,readPresetJSON
+from .re_chain_cfil import cfilGames,gamesWithCfil,gamesForVersion
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree,getChainLinkGeoNodeTree,getConeGeoNodeTree,getLinkColGeoNodeTree,getChainGroupMat
 
 
@@ -1929,7 +1930,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	CollisionCharacter : bpy.props.BoolProperty(
 		name="Scene Colliders (CLSP)",
-		description="Collides with CLSP shapes whose mask meets the group's CLSP Flags A / B, when the prefab's Collision Target is Extern or All",
+		description="Collides with CLSP shapes whose mask meets the group's CLSP Flags A / B, when the prefab's Collision Target is Extern or All.\nChain version 55 and above, and chain2 only",
 		default = False)
 	#chain2
 	UseBitFlag : bpy.props.BoolProperty(
@@ -1964,9 +1965,6 @@ class WM_OT_SetAttrFlags(Operator):
 			elif isChain2 and key == "AngleLimitRestitution":
 				row.active = self.AngleLimit and not self.StretchBoth
 			row.prop(self,key,text=flagLabel(key))
-			if key == "CollisionCharacter" and not isChain2:
-				#RE4 and older have no CLSP: their chain collisions are all in the chain file
-				layout.label(text="    Only games with CLSP files (Dragon's Dogma 2, Pragmata); RE4 and older have none")
 		
 	@classmethod
 	def poll(self,context):
@@ -2315,37 +2313,82 @@ class WM_OT_SetJiggleAttrFlags(Operator):
 		return context.window_manager.invoke_props_dialog(self)
 	
 	
+#Set CFIL Path lists: kept at module level, Blender needs the strings a dynamic enum returns to stay alive.
+#Identifiers are indices: paths can be longer than an enum identifier may be
+CFIL_GAME_ITEMS = []
+CFIL_PATH_ITEMS = {}
+
+def getCfilGames(self, context):
+	if not CFIL_GAME_ITEMS:
+		games = sorted(cfilGames().items(),key = lambda item: item[1]["name"])
+		for key,game in games:
+			versions = [f".chain.{v}" for v in game["chain"]] + [f".chain2.{v}" for v in game["chain2"]]
+			CFIL_GAME_ITEMS.append((key,game["name"]," ".join(versions)))
+	return CFIL_GAME_ITEMS
+
+def cfilPathList(gameKey):
+	"""The game's paths: the ones vanilla chains reference (as written there), then its other .cfil files."""
+	if gameKey not in CFIL_PATH_ITEMS:
+		game = cfilGames().get(gameKey,{"used":[],"files":[]})
+		used = game["used"]
+		usedKeys = {path.lower() for path in used}
+		others = [path for path in game["files"] if path not in usedKeys]
+		paths = used + others
+		items = [(str(i),path,"Used by vanilla chains" if i < len(used) else "In the game's files, not seen in vanilla chains") for i,path in enumerate(paths)]
+		if used and others:
+			items.insert(len(used),None)#Separator
+		CFIL_PATH_ITEMS[gameKey] = (paths,items)
+	return CFIL_PATH_ITEMS[gameKey]
+
+def getCfilPaths(self, context):
+	return cfilPathList(self.game)[1]
+
 class WM_OT_SetCFILPath(Operator):
 	bl_label = "Set CFIL Path"
-	bl_description = "Choose .cfil path from list of known paths.\nNote that if this file does not exist for the game you're modding, the game will infinitely load"
+	bl_description = "Choose a .cfil path of a game.\nA cfil the game doesn't have keeps the character loading forever. Clear the field for no cfil"
 	bl_idname = "re_chain.set_cfil_path"
 	bl_context = "objectmode"
 	bl_options = {'UNDO','INTERNAL'}
+	game: bpy.props.EnumProperty(
+		name="Game",
+		description="The game the chain file is for",
+		items=getCfilGames,
+		)
 	cfilPath: bpy.props.EnumProperty(
 		name="CFIL Type",
-		description="Set collider filter info path of chain settings",
-		items=[	("System/Collision/Filter/Character/Character_Chain.cfil", "MH Wilds Character CFIL", ""),
-		        ("Collision/CollisionFilter/Chain/ChainCloth.cfil", "DMC5 Character CFIL", ""),
-			   ]
+		description="Collider filter info path of the selected chain settings. The ones vanilla chains use come first",
+		items=getCfilPaths,
 		)
-	
+
 	def draw(self,context):
 		layout = self.layout
+		layout.prop(self,"game")
 		layout.prop(self,"cfilPath")
-		
+
 	@classmethod
 	def poll(self,context):
 		return context.active_object is not None and context.active_object.get("TYPE") == "RE_CHAIN_CHAINSETTINGS"
 	def execute(self, context):
-		
-		
+		paths = cfilPathList(self.game)[0]
+		index = int(self.cfilPath) if self.cfilPath.isdigit() else -1
+		if not 0 <= index < len(paths):
+			return {'CANCELLED'}
 		for selectedObject in bpy.context.selected_objects:
 			selectedObjectType = selectedObject.get("TYPE",None)
 			if selectedObjectType == "RE_CHAIN_CHAINSETTINGS":
-				selectedObject.re_chain_chainsettings.colliderFilterInfoPath = self.cfilPath
-		self.report({"INFO"},"Set cfil path flags.")
+				selectedObject.re_chain_chainsettings.colliderFilterInfoPath = paths[index]
+		self.report({"INFO"},"Set cfil path.")
 		tag_redraw(bpy.context)
 		return {'FINISHED'}
-	
+
 	def invoke(self,context,event):
+		#Start on the game of the current path, else of the last imported file's version
+		path = context.active_object.re_chain_chainsettings.colliderFilterInfoPath
+		owners = gamesWithCfil(path) if path.strip() else []
+		if not owners:
+			isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+			version = context.scene.get("REChainLastImportedChain2Version" if isChain2 else "REChainLastImportedChainVersion",None)
+			owners = gamesForVersion(version,isChain2) if version != None else []
+		if owners:
+			self.game = owners[0]
 		return context.window_manager.invoke_props_dialog(self)

@@ -535,10 +535,6 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 		row.prop(re_chain_chaingroup, "clspFlags0")
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaingroup.clspFlags0"
 		col2.prop(re_chain_chaingroup, "clspFlags1")
-		if context.scene.re_chain_toolpanel.chainFileType == "chain":
-			note = col2.row()
-			note.alignment = 'RIGHT'
-			note.label(text="CLSP Flags: only games with CLSP files (Dragon's Dogma 2, Pragmata); RE4 and older have none")
 
 		col2.prop(re_chain_chaingroup, "autoBlendCheckNodeNo")
 		col2.prop(re_chain_chaingroup, "tagCount")
