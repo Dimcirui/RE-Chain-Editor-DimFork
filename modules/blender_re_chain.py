@@ -29,7 +29,9 @@ from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
 									  setChainCollisionData,
 									  setChainLinkData,
 									  getChainLinkCollisionNode,
-									  setChainLinkCollisionNodeData)
+									  setChainLinkCollisionNodeData,
+									  objChildren,
+									  withExportChildren)
 
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree,getChainLinkGeoNodeTree,getConeGeoNodeTree,getLinkColGeoNodeTree,getChainGroupMat
 
@@ -1103,6 +1105,7 @@ def chainErrorCheck(chainCollectionName):
 		print(textColors.FAIL + "__________________________________\nChain export failed."+textColors.ENDC)
 		return False
 
+@withExportChildren
 def chainStructureErrors(chainCollection,warn = raiseWarning):
 	#Problems that stop the chain from exporting, as a list of messages; reads the scene without changing it
 	#Check that there is chain data collection
@@ -1132,7 +1135,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 		
 		elif obj.get("TYPE",None) == "RE_CHAIN_NODE":
 			childFrame = None
-			for child in obj.children:
+			for child in objChildren(obj):
 				if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME":
 					if childFrame != None:
 						errorList.append("Chain node " + obj.name + " has more than one frame parented to it.")
@@ -1166,7 +1169,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 				errorList.append(obj.name + " must be parented to a chain settings object.")
 				
 			validChainGroup = False
-			for child in obj.children:
+			for child in objChildren(obj):
 				if child.get("TYPE") == "RE_CHAIN_NODE":
 					validChainGroup = True
 					#for nodeChild in child.children:
@@ -1224,7 +1227,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 			#if obj.re_chain_chaincollision.chainCollisionShape != "2" and obj.re_chain_chaincollision.chainCollisionShape != "0":#Capsule OR None
 				#errorList.append(obj.name + " object collision shape is not set to capsule. Create other collision shapes by using the Create Collision From Bone button after selecting a single bone")
 			startCapsule = None
-			for child in obj.children:
+			for child in objChildren(obj):
 				if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
 					if startCapsule != None:
 						errorList.append("Collision capsule " + obj.name + " has more than one start point parented to it.")
@@ -1240,7 +1243,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 					errorList.append("Child of constraint missing on " + startCapsule.name)
 					
 			endCapsule = None
-			for child in obj.children:
+			for child in objChildren(obj):
 				if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
 					if endCapsule != None:
 						errorList.append("Collision capsule " + obj.name + " has more than one end point parented to it.")
@@ -1305,7 +1308,7 @@ def dedupeSettingsIDs(objList,fix = True,warn = raiseWarning):
 def getCapsuleEnds(chainCollisionObj):
 	startCapsule = None
 	endCapsule = None
-	for child in chainCollisionObj.children:
+	for child in objChildren(chainCollisionObj):
 		if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
 			startCapsule = child
 		elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
@@ -1366,6 +1369,7 @@ def exportChainFile(filepath,options, version, isChain2 = False):
 		writeREChain(newChainFile, filepath)
 		return True
 
+@withExportChildren
 def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn = raiseWarning):
 	#The chain file of a collection that passed chainErrorCheck/chainStructureErrors
 	#fixScene writes export's fixes back to the scene (IDs aside, see dedupeSettingsIDs): tapered capsules, missing MH Wilds subdata, UI values
@@ -1508,12 +1512,12 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 		#Get nodes
 		nodeObjList = []
 		#TODO Add chain group subdata export
-		currentNode = chainGroupObj.children[0]
+		currentNode = objChildren(chainGroupObj)[0]
 		nodeObjList = [currentNode]
 		hasChildNode = True
 		while hasChildNode:
 			currentNodeHasChildNode = False
-			for child in currentNode.children:
+			for child in objChildren(currentNode):
 				if child.get("TYPE",None) == "RE_CHAIN_NODE":
 					nodeObjList.append(child)
 					currentNode = child
@@ -1549,7 +1553,7 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 			
 			chainGroup.nodeList.append(node)
 			if version >= 35 or isChain2:
-				for child in nodeObj.children:
+				for child in objChildren(nodeObj):
 					if child.get("TYPE",None) == "RE_CHAIN_JIGGLE":
 						if isChain2:
 							jiggle = Chain2JiggleData()
@@ -1576,12 +1580,12 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 				else:
 					subGroupData.settingID = -1
 				nodeObjList = []
-				currentNode = subGroupObj.children[0]
+				currentNode = objChildren(subGroupObj)[0]
 				nodeObjList = [currentNode]
 				hasChildNode = True
 				while hasChildNode:
 					currentNodeHasChildNode = False
-					for child in currentNode.children:
+					for child in objChildren(currentNode):
 						if child.get("TYPE",None) == "RE_CHAIN_NODE":
 							nodeObjList.append(child)
 							currentNode = child
@@ -1617,7 +1621,7 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 					
 					subGroupData.nodeList.append(node)
 					if version >= 35 or isChain2:
-						for child in nodeObj.children:
+						for child in objChildren(nodeObj):
 							if child.get("TYPE",None) == "RE_CHAIN_JIGGLE":
 								if isChain2:
 									jiggle = Chain2JiggleData()
@@ -1674,7 +1678,7 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 			chainLink = ChainLinkData()
 		setChainLinkData(chainLink, chainLinkObj,isChain2)
 		colObjList = []
-		for obj in chainLinkObj.children:
+		for obj in objChildren(chainLinkObj):
 			if obj.get("TYPE") == "RE_CHAIN_LINK_COLLISION":
 				colObjList.append(obj)
 		colObjList.sort(key = lambda item: item.name)

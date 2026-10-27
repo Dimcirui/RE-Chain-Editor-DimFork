@@ -8,6 +8,7 @@ import bpy
 from .modules.blender_re_chain import chainStructureErrors,buildChainFile
 from .modules.blender_re_clsp import clspStructureErrors,buildCLSPFile
 from .modules.re_chain_type_sync import chainFileTypeForCollection
+from .modules.re_chain_propertyGroups import exportChildren
 from .modules.re_chain_operators import chainGroupAttrFlags,chain2GroupAttrFlags
 
 API_VERSION = 2
@@ -102,10 +103,12 @@ def export_bytes(collection,version = None,as_format = None):
 				raise ExportError(problems)
 			fileData = buildCLSPFile(collection,version,fixScene = False,warn = warnings.append)[0]
 		else:
-			problems = chainStructureErrors(collection,warn = warnings.append)
-			if problems:
-				raise ExportError(problems)
-			fileData = buildChainFile(collection,version,isChain2 = fileFormat == "chain2",fixScene = False,warn = warnings.append)
+			#One parent -> children map for the check and the build (see objChildren)
+			with exportChildren():
+				problems = chainStructureErrors(collection,warn = warnings.append)
+				if problems:
+					raise ExportError(problems)
+				fileData = buildChainFile(collection,version,isChain2 = fileFormat == "chain2",fixScene = False,warn = warnings.append)
 			if sourceFormat == "chain" and fileFormat == "chain2":
 				for group in fileData.ChainGroupList:
 					group.attrFlags = chainToChain2GroupAttr(group.attrFlags)

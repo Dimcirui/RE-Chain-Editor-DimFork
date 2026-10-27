@@ -13,6 +13,8 @@ from bpy.props import (StringProperty,
 
 import math
 import struct
+import functools
+from contextlib import contextmanager
 
 from .pymmh3 import hash_wide
 
@@ -23,6 +25,40 @@ from .re_chain_presets import reloadPresets
 from .re_chain_names import LINK_MODE_NAMES,useLegacyNames
 
 #V2 - Removed AttrFlags enum, replaced with a pseudo enum using int value and operator due to large variations in values
+
+#Object.children scans every object in the file on each access and an export reads it for every node,
+#so while exportChildren is active objChildren reads a parent -> children map built once instead
+_childrenMap = None
+
+def objChildren(obj):
+	#obj.children, in the same order (bpy.data.objects order)
+	if _childrenMap == None:
+		return obj.children
+	return _childrenMap.get(obj,())
+
+@contextmanager
+def exportChildren():
+	#Only for code that doesn't parent, unparent, add or remove objects while it runs; nests (the outermost map is used)
+	global _childrenMap
+	if _childrenMap != None:
+		yield
+		return
+	childrenMap = {}
+	for obj in bpy.data.objects:
+		if obj.parent != None:
+			childrenMap.setdefault(obj.parent,[]).append(obj)
+	_childrenMap = childrenMap
+	try:
+		yield
+	finally:
+		_childrenMap = None
+
+def withExportChildren(func):
+	@functools.wraps(func)
+	def wrapper(*args,**kwargs):
+		with exportChildren():
+			return func(*args,**kwargs)
+	return wrapper
 
 def filterChainCollection(self, collection):
 	#I messed up with the mesh editor and accidentally left the type of mdf collections as RE_CHAIN_COLLECTION, so this long check is needed
@@ -2348,7 +2384,7 @@ def setChainNodeData(ChainNodeData,targetObject, isChain2 = False):
 	ChainNodeData.rotationType = targetObject.re_chain_chainnode.rotationType
 	ChainNodeData.gravityCoef = targetObject.re_chain_chainnode.gravityCoef
 
-	for child in targetObject.children:
+	for child in objChildren(targetObject):
 		if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME":
 			frame = child
 	frameRotation = rotationAsQuaternion(frame)
@@ -2679,7 +2715,7 @@ def setChainCollisionData(ChainCollisionData,targetObject,isChain2 = False,syncU
 	else:
 		startCapsule = None
 		endCapsule = None
-		for child in targetObject.children: 
+		for child in objChildren(targetObject):
 			if child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_START":
 				startCapsule = child
 			elif child.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_END":
