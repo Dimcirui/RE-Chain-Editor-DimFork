@@ -52,6 +52,13 @@ class OBJECT_PT_ChainObjectModePanel(Panel):
 		scene = context.scene
 		re_chain_toolpanel = scene.re_chain_toolpanel
 		layout = self.layout
+		row = layout.row(align = True)
+		row.operator("re_chain.importfile", text = "Import Chain", icon = "IMPORT")
+		row.operator("re_chain.exportfile", text = "Export Chain", icon = "EXPORT")
+		row = layout.row(align = True)
+		row.operator("re_clsp.importfile", text = "Import CLSP", icon = "IMPORT")
+		row.operator("re_clsp.exportfile", text = "Export CLSP", icon = "EXPORT")
+		layout.separator()
 		layout.operator("re_chain.create_chain_header")
 		layout.label(text = "Active Chain Collection")
 		#layout.prop_search(re_chain_toolpanel, "chainCollection",bpy.data,"collections",icon = "COLLECTION_COLOR_02")
