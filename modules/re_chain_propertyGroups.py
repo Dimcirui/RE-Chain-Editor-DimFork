@@ -605,20 +605,25 @@ def groupDefaultAttrUses(settingObj):
 			links = False
 			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
 			if headers and any(obj.get("TYPE",None) == "RE_CHAIN_LINK" for obj in objects):
-				settings = sorted([obj for obj in objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"],key = lambda item: item.name)
+				settings = settingsInFileOrder(objects)
 				index = headers[0].re_chain_header.defaultSettingIdx
 				links = 0 <= index < len(settings) and settings[index] == settingObj
 			return groups, links
 	return 0, False
 
+def settingsInFileOrder(objects):
+	"""The chain settings in the order export writes them: by ID (then name, as export sorts before it)."""
+	settings = [obj for obj in objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"]
+	return sorted(settings,key = lambda item: (item.re_chain_chainsettings.id,item.name))
+
 def linkCollisionSetting(chainLinkObj):
 	"""The chain setting whose Group Default Attribute switches link collision on: MH Wilds takes the setting the
-	header's Default Setting Index picks, in export order (by name)."""
+	header's Default Setting Index picks, in file order (by ID)."""
 	for collection in bpy.data.collections:
 		if chainLinkObj.name in collection.all_objects:
 			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
 			if headers:
-				settings = sorted([obj for obj in collection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"],key = lambda item: item.name)
+				settings = settingsInFileOrder(collection.all_objects)
 				index = headers[0].re_chain_header.defaultSettingIdx
 				return headers[0], settings[index] if 0 <= index < len(settings) else None
 	return None, None
