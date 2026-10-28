@@ -1820,7 +1820,7 @@ class WM_OT_SelectGroupBones(Operator):
 
 class WM_OT_AlignBoneTailsToAxis(Operator):
 	bl_label = "Align Tails to Axis"
-	bl_description = "Aligns all bones that are a child of the selected bone to a specified axis. This is how Capcom usually has their chain bones and it may help you get a better result with angle limits"
+	bl_description = "Aligns the selected bones and all their children to a specified axis (select one start bone per chain to do several chains at once). This changes the rest pose: export the mesh again with it, and redo the angle limit directions of chains on these bones. This is how Capcom usually has their chain bones and it may help you get a better result with angle limits"
 	bl_idname = "re_chain.align_bone_tails_to_axis"
 	bl_context = "posemode"
 	bl_options = {'UNDO'}
@@ -1839,21 +1839,38 @@ class WM_OT_AlignBoneTailsToAxis(Operator):
 	
 	@classmethod
 	def poll(self,context):
-		return context.active_object is not None
+		return context.active_object is not None and context.active_object.type == "ARMATURE"
+
+	def chainBoneNames(self,context):
+		"""The selected start bones of the active armature and all their children, each once; and how many selected bones are on other armatures."""
+		armature = context.active_object
+		names = []
+		otherBones = 0
+		for startBone in context.selected_pose_bones or []:
+			if startBone.id_data != armature:
+				otherBones += 1
+				continue
+			for bone in [startBone] + startBone.children_recursive:
+				if bone.name not in names:
+					names.append(bone.name)
+		return names,otherBones
+
+	def draw(self, context):
+		layout = self.layout
+		layout.prop(self,"alignAxis")
+		names,otherBones = self.chainBoneNames(context)
+		layout.label(text=f"{len(names)} bone(s) will be changed.")
+		if otherBones:
+			layout.label(text=f"{otherBones} selected bone(s) on other armatures are skipped.",icon="ERROR")
+
 	def execute(self, context):
-		selected = bpy.context.selected_pose_bones
-		chainList = []
-		if len(selected) == 1:
-			startBone = selected[0]
-			
-			chainList = startBone.children_recursive
-			chainList.insert(0,startBone)
-		else:
-			showErrorMessageBox("Select only the chain start bone.")
+		names,otherBones = self.chainBoneNames(context)
+		if not names:
+			showErrorMessageBox("Select the chain start bone(s).")
 			return {'CANCELLED'}
-		
-		armature = startBone.id_data
-		
+		armature = context.active_object
+		chainList = [armature.pose.bones[name] for name in names]
+
 		if self.alignAxis == "X":
 			alignVector = Vector((1.0,0.0,0.0))
 		elif self.alignAxis == "-X":
@@ -1882,7 +1899,7 @@ class WM_OT_AlignBoneTailsToAxis(Operator):
 			armature.data.edit_bones[bone.name].tail = editBone.head + tailAddVector
 			armature.data.edit_bones[bone.name].roll = 0
 		bpy.ops.object.mode_set(mode="POSE")#Switch back to pose mode after finished editing bones
-		self.report({"INFO"},"Aligned bone tails to axis.")
+		self.report({"WARNING"} if otherBones else {"INFO"},f"Aligned {len(names)} bone tail(s) to axis." + (f" {otherBones} selected bone(s) on other armatures were skipped." if otherBones else ""))
 		return {'FINISHED'}
 	def invoke(self,context,event):
 		return context.window_manager.invoke_props_dialog(self)
