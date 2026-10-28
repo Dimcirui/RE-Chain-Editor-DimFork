@@ -1,7 +1,7 @@
 #Author: NSA Cloud
 import bpy
 import os
-from math import radians
+from math import radians,cos,sin
 from mathutils import Matrix,Vector,Quaternion
 
 from bpy.types import Operator
@@ -1141,6 +1141,143 @@ class WM_OT_AlignFrames(Operator):
 	@classmethod
 	def poll(self,context):
 		return bpy.context.scene.re_chain_toolpanel.chainCollection is not None
+def chainNodeLists(groupObjs):
+	"""Each group's nodes from the root, following the first child node."""
+	chains = []
+	for groupObj in groupObjs:
+		for childObject in groupObj.children:
+			if childObject.get("TYPE",None) == "RE_CHAIN_NODE":
+				nodeList = [childObject]
+				while hasChildNode(nodeList[-1]):
+					nodeList.append(next(child for child in nodeList[-1].children if child.get("TYPE",None) == "RE_CHAIN_NODE"))
+				chains.append(nodeList)
+	return chains
+
+def nodeBone(nodeObj):
+	constraint = nodeObj.constraints.get("BoneName",None)
+	if constraint == None or constraint.target == None or constraint.target.type != "ARMATURE":
+		return None,None
+	return constraint.target,constraint.target.data.bones.get(constraint.subtarget,None)
+
+AXIS_VECTORS = {"X":Vector((1.0,0.0,0.0)),"-X":Vector((-1.0,0.0,0.0)),"Y":Vector((0.0,1.0,0.0)),"-Y":Vector((0.0,-1.0,0.0)),"Z":Vector((0.0,0.0,1.0)),"-Z":Vector((0.0,0.0,-1.0))}
+
+class WM_OT_AlignAngleLimitEdges(Operator):
+	bl_label = "Align Angle Limit Edges Outward"
+	bl_idname = "re_chain.align_angle_limit_edges"
+	bl_description = "Like Align Angle Limits to Next Node, but tilts each cone outward by half its angle so that its inner edge, not its center, lies on the direction to the next node: the node can swing outward but not fold in past its rest pose (a skirt that does not tuck in). Run it after setting the angle limits, it uses them. Acts on the selected chain groups, or every chain of the chain collection"
+	bl_context = "objectmode"
+	bl_options = {'UNDO'}
+	mode : bpy.props.EnumProperty(
+		name = "Mode",
+		description = "Where outward is",
+		items = [("AUTO","Auto","Away from the vertical axis through the center of the chain collection's group roots (each chain group gets its own direction, as around a skirt)"),
+				 ("GLOBAL","Global","A world axis"),
+				 ("LOCAL","Local","An axis of the node's bone at rest, square to the bone. Depends on the bone roll")],
+		default = "AUTO")
+	globalDirection : bpy.props.EnumProperty(
+		name = "Direction",
+		items = [(axis,axis,"") for axis in ("X","-X","Y","-Y","Z","-Z")],
+		default = "-Z")
+	localDirection : bpy.props.EnumProperty(
+		name = "Direction",
+		items = [(axis,axis,"") for axis in ("X","-X","Z","-Z")],
+		default = "X")
+	margin : bpy.props.FloatProperty(
+		name = "Margin",
+		description = "Tilt the cone this much less than half its angle, so the rest pose sits inside the cone instead of on its edge",
+		default = 0.0,
+		min = 0.0,
+		soft_max = 0.5235988,
+		subtype = "ANGLE")
+
+	@classmethod
+	def poll(self,context):
+		return context.scene.re_chain_toolpanel.chainCollection is not None
+
+	def draw(self, context):
+		layout = self.layout
+		layout.prop(self,"mode")
+		if self.mode == "GLOBAL":
+			layout.prop(self,"globalDirection")
+		elif self.mode == "LOCAL":
+			layout.prop(self,"localDirection")
+		layout.prop(self,"margin")
+
+	def invoke(self,context,event):
+		return context.window_manager.invoke_props_dialog(self)
+
+	def autoCenter(self,nodeObj,centers):
+		#The center of every group root of the node's chain collection, so the result doesn't depend on the selection
+		from .re_chain_type_sync import getOwningChainCollection
+		collection = getOwningChainCollection(nodeObj)
+		key = collection.name if collection != None else ""
+		if key not in centers:
+			groups = [obj for obj in collection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP"] if collection != None else []
+			roots = [chain[0].matrix_world.translation for chain in chainNodeLists(groups)]
+			centers[key] = sum(roots,Vector()) / len(roots) if roots else Vector()
+		return centers[key]
+
+	def outwardReference(self,nodeObj,head,armature,bone,centers):
+		if self.mode == "AUTO":
+			reference = head - self.autoCenter(nodeObj,centers)
+			reference.z = 0.0
+			return reference
+		if self.mode == "GLOBAL":
+			return AXIS_VECTORS[self.globalDirection].copy()
+		return (armature.matrix_world.to_3x3() @ bone.matrix_local.to_3x3()) @ AXIS_VECTORS[self.localDirection]
+
+	def execute(self, context):
+		groups = [obj for obj in context.selected_objects if obj.get("TYPE",None) in ("RE_CHAIN_CHAINGROUP","RE_CHAIN_SUBGROUP")]
+		if not groups:
+			collection = context.scene.re_chain_toolpanel.chainCollection
+			groups = [obj for obj in collection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP"]
+		chains = chainNodeLists(groups)
+		if not chains:
+			showErrorMessageBox("No chains found in selection or collection.")
+			return {'CANCELLED'}
+		centers = {}
+		aligned = skipped = 0
+		for chain in chains:
+			bones = [nodeBone(nodeObj) for nodeObj in chain]
+			heads = [armature.matrix_world @ bone.head_local if bone != None else None for armature,bone in bones]
+			for index,nodeObj in enumerate(chain):
+				armature,bone = bones[index]
+				frame = next((child for child in nodeObj.children if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME"),None)
+				if bone == None or frame == None:
+					skipped += 1
+					continue
+				#Toward the next node; the last node keeps the previous segment, a single node its bone
+				if index + 1 < len(chain) and heads[index+1] != None:
+					direction = heads[index+1] - heads[index]
+				elif index > 0 and heads[index-1] != None:
+					direction = heads[index] - heads[index-1]
+				else:
+					direction = armature.matrix_world @ bone.tail_local - heads[index]
+				if direction.length < 1e-6:
+					skipped += 1
+					continue
+				direction.normalize()
+				reference = self.outwardReference(nodeObj,heads[index],armature,bone,centers)
+				outward = reference - reference.dot(direction) * direction
+				if outward.length < 1e-4:#Outward is along the chain here: no side to tilt to
+					skipped += 1
+					continue
+				outward.normalize()
+				tilt = max(nodeObj.re_chain_chainnode.angleLimitRad / 2.0 - self.margin,0.0)
+				#Cone axis (frame X) tilted outward; frame Y the outward side in the same plane, for the flattened modes
+				axisX = direction * cos(tilt) + outward * sin(tilt)
+				axisY = outward * cos(tilt) - direction * sin(tilt)
+				axisZ = axisX.cross(axisY)
+				worldRotation = Matrix((axisX,axisY,axisZ)).transposed().to_quaternion()
+				frame.rotation_mode = "XYZ"
+				frame.rotation_euler = (nodeObj.matrix_world.to_quaternion().inverted() @ worldRotation).to_euler()
+				aligned += 1
+		if skipped:
+			self.report({"WARNING"},f"Aligned {aligned} angle limit(s). {skipped} skipped: no bone or angle limit, or outward lies along the chain.")
+		else:
+			self.report({"INFO"},f"Aligned {aligned} angle limit(s) outward.")
+		return {'FINISHED'}
+
 class WM_OT_PointFrame(Operator):
 	bl_label = "Point Frame to Selected"
 	bl_idname = "re_chain.point_frame"
@@ -1589,7 +1726,97 @@ class WM_OT_ApplyAngleLimitRamp(Operator):
 	
 	def invoke(self,context,event):
 		return context.window_manager.invoke_props_dialog(self)
-	
+
+def selectedGroupNodes(context):
+	"""The chain nodes of the selected chain groups and sub groups, root first."""
+	nodes = []
+	for groupObj in context.selected_objects:
+		if groupObj.get("TYPE",None) in ("RE_CHAIN_CHAINGROUP","RE_CHAIN_SUBGROUP"):
+			nodes.extend(child for child in groupObj.children_recursive if child.get("TYPE",None) == "RE_CHAIN_NODE")
+	return nodes
+
+def selectInsteadOfGroups(context,objects):
+	"""Deselect everything and select the given objects (the visible ones) in place of the groups, the first one active."""
+	objects = [obj for obj in objects if obj.visible_get()]
+	for obj in context.selected_objects:
+		obj.select_set(False)
+	for obj in objects:
+		obj.select_set(True)
+	if objects:
+		context.view_layer.objects.active = objects[0]
+	return len(objects)
+
+def groupSelectPoll(context):
+	return context.mode == "OBJECT" and any(obj.get("TYPE",None) in ("RE_CHAIN_CHAINGROUP","RE_CHAIN_SUBGROUP") for obj in context.selected_objects)
+
+class WM_OT_SelectGroupNodes(Operator):
+	bl_label = "Select Group Nodes"
+	bl_description = "Select every chain node of the selected chain groups (and sub groups) in place of the groups, to change the parameters of a whole batch of nodes at once. Hidden nodes are skipped"
+	bl_idname = "re_chain.select_group_nodes"
+	bl_options = {'UNDO'}
+	@classmethod
+	def poll(self,context):
+		return groupSelectPoll(context)
+	def execute(self, context):
+		count = selectInsteadOfGroups(context,selectedGroupNodes(context))
+		self.report({"INFO"},f"Selected {count} chain node(s).")
+		return {'FINISHED'}
+
+class WM_OT_SelectGroupAngleLimits(Operator):
+	bl_label = "Select Group Angle Limits"
+	bl_description = "Select every angle limit of the selected chain groups (and sub groups) in place of the groups, to change their directions at once. Hidden angle limits are skipped"
+	bl_idname = "re_chain.select_group_angle_limits"
+	bl_options = {'UNDO'}
+	@classmethod
+	def poll(self,context):
+		return groupSelectPoll(context)
+	def execute(self, context):
+		frames = [child for nodeObj in selectedGroupNodes(context) for child in nodeObj.children if child.get("TYPE",None) == "RE_CHAIN_NODE_FRAME"]
+		count = selectInsteadOfGroups(context,frames)
+		self.report({"INFO"},f"Selected {count} angle limit(s).")
+		return {'FINISHED'}
+
+class WM_OT_SelectGroupBones(Operator):
+	bl_label = "Select Group Bones"
+	bl_description = "Switch to Pose Mode on the armature of the selected chain groups (and sub groups) and select the bones their nodes are on"
+	bl_idname = "re_chain.select_group_bones"
+	bl_options = {'UNDO'}
+	@classmethod
+	def poll(self,context):
+		return groupSelectPoll(context)
+	def execute(self, context):
+		boneNames = {}#armature: bone names
+		for nodeObj in selectedGroupNodes(context):
+			constraint = nodeObj.constraints.get("BoneName",None)
+			if constraint != None and constraint.target != None and constraint.target.type == "ARMATURE":
+				boneNames.setdefault(constraint.target,[]).append(constraint.subtarget)
+		if not boneNames:
+			showErrorMessageBox("The selected chain groups have no nodes on an armature bone.")
+			return {'CANCELLED'}
+		if len(boneNames) > 1:
+			self.report({"WARNING"},"The selected chain groups are on more than one armature, only the first one is used.")
+		armature,names = next(iter(boneNames.items()))
+		if not armature.visible_get():
+			showErrorMessageBox(f"The armature {armature.name} is hidden.")
+			return {'CANCELLED'}
+		for obj in context.selected_objects:
+			obj.select_set(False)
+		armature.select_set(True)
+		context.view_layer.objects.active = armature
+		bpy.ops.object.mode_set(mode="POSE")
+		rootName = names[0]
+		names = set(names)
+		for poseBone in armature.pose.bones:
+			selected = poseBone.name in names
+			if hasattr(poseBone,"select"):#Blender 5.0+ keeps pose selection on the pose bone
+				poseBone.select = selected
+			else:
+				poseBone.bone.select = selected
+		activeBone = armature.data.bones.get(rootName,None)
+		if activeBone != None:
+			armature.data.bones.active = activeBone
+		self.report({"INFO"},f"Selected {len(names)} bone(s) on {armature.name}.")
+		return {'FINISHED'}
 
 class WM_OT_AlignBoneTailsToAxis(Operator):
 	bl_label = "Align Tails to Axis"

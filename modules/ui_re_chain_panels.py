@@ -71,12 +71,40 @@ class OBJECT_PT_ChainObjectModePanel(Panel):
 		layout.operator("re_chain.create_chain_link_collision")
 		layout.operator("re_chain.create_sub_group")
 		#layout.operator("re_chain.align_chains_to_bone")# Not needed anymore
-		layout.operator("re_chain.align_frames")
-		layout.operator("re_chain.apply_angle_limit_ramp")
 		layout.label(text="Create new chains in Pose Mode.")
 		layout.operator("re_chain.switch_to_pose")
 		#Not implemented yet
 		#layout.operator("re_chain.point_frame")#Not implemented yet
+
+class OBJECT_PT_ChainToolsPanel(Panel):
+	bl_label = "RE Chain: Tools"
+	bl_idname = "OBJECT_PT_chain_tools_panel"
+	bl_space_type = "VIEW_3D"
+	bl_region_type = "UI"
+	bl_category = "RE Chain"
+	bl_context = "objectmode"
+
+	@classmethod
+	def poll(self,context):
+		return context is not None and "HIDE_RE_CHAIN_EDITOR_TAB" not in context.scene
+
+	def draw(self, context):
+		layout = self.layout
+		layout.operator("re_chain.align_frames")
+		layout.operator("re_chain.align_angle_limit_edges")
+		layout.operator("re_chain.apply_angle_limit_ramp")
+		layout.label(text="Selected Chain Groups")
+		layout.operator("re_chain.select_group_nodes")
+		layout.operator("re_chain.select_group_angle_limits")
+		layout.operator("re_chain.select_group_bones")
+		re_chain_toolpanel = context.scene.re_chain_toolpanel
+		layout.label(text="Collision Interactions")
+		layout.prop(re_chain_toolpanel, "highlightInteractions")
+		column = greyed(layout,re_chain_toolpanel.highlightInteractions)
+		column.prop(re_chain_toolpanel, "highlightOpacity")
+		column.prop(re_chain_toolpanel, "referenceColliderCollection",icon = "COLLECTION_COLOR_02")
+		if re_chain_toolpanel.referenceColliderCollection == None:
+			column.label(text="Empty: each chain's own collisions")
 
 class OBJECT_PT_ChainClipboardPanel(Panel):
 	bl_label = "RE Chain: Clipboard"
@@ -129,17 +157,31 @@ class OBJECT_PT_ChainPoseModePanel(Panel):
 		if not re_chain_toolpanel.experimentalPoseModeOptions and len(context.selected_pose_bones or []) > 1:
 			chainFromBoneText = "Batch Create Chains From Bones"
 		layout.operator("re_chain.chain_from_bone",text=chainFromBoneText)
+		layout.prop(re_chain_toolpanel, "experimentalPoseModeOptions")
 		layout.label(text="Collision Tools")
 		layout.prop(re_chain_toolpanel, "collisionShape")
 		layout.operator("re_chain.collision_from_bone")
 		layout.operator("re_chain.create_full_body_clsp")
-		layout.label(text="Extra Tools")
+		layout.label(text="Configure chains in Object Mode.")
+		layout.operator("re_chain.switch_to_object")
+
+class OBJECT_PT_ChainPoseToolsPanel(Panel):
+	bl_label = "RE Chain: Tools"
+	bl_idname = "OBJECT_PT_chain_pose_tools_panel"
+	bl_space_type = "VIEW_3D"
+	bl_region_type = "UI"
+	bl_category = "RE Chain"
+	bl_context = "posemode"
+
+	@classmethod
+	def poll(self,context):
+		return context.active_object is not None and "HIDE_RE_CHAIN_EDITOR_TAB" not in context.scene
+
+	def draw(self, context):
+		layout = self.layout
 		layout.operator("re_chain.rename_bone_chain")
 		layout.operator("re_chain.create_chain_bone_group")
 		layout.operator("re_chain.align_bone_tails_to_axis")
-		layout.prop(re_chain_toolpanel, "experimentalPoseModeOptions")
-		layout.label(text="Configure chains in Object Mode.")
-		layout.operator("re_chain.switch_to_object")
 
 class OBJECT_PT_ChainPresetPanel(Panel):
 	bl_label = "RE Chain: Presets"

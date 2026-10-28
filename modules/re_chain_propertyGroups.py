@@ -920,6 +920,26 @@ class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 		default = True,
 		update = update_hideLastNodeAngleLimit,
 	)
+	highlightInteractions: BoolProperty(
+		name="Highlight Interactions",
+		description="In Object Mode, outline what the selection collides with: the collisions of a selected chain group, sub group, node or link, or the chain groups and links a selected collision is hit by. Orange: internal collisions (the chain's own, by Collision Filter Flags). Blue: external colliders (the Reference Colliders, by the CLSP Flags mask; chain2 and chain version 55 and above). The Chain Collisions and Scene Colliders switches of the group, or of its setting with Collision from Setting, are taken into account",
+		default = True,
+	)
+	highlightOpacity: FloatProperty(
+		name="Highlight Opacity",
+		description="Opacity of the interaction outlines. Parts behind other geometry are drawn fainter",
+		default = 0.4,
+		min = 0.0,
+		max = 1.0,
+		subtype = "FACTOR",
+		update = lambda self, context: [area.tag_redraw() for area in context.screen.areas if area.type == "VIEW_3D"] if context.screen else None,
+	)
+	referenceColliderCollection: bpy.props.PointerProperty(
+		name="Reference Colliders",
+		description="The chain, chain2 or clsp collection whose collisions act as external colliders (a CLSP in the game). Empty: the chain's own collisions are the external ones, as with most pfbs, which set the chain to collide with external colliders only. Set to another collection, the chain's own collisions become internal ones",
+		type=bpy.types.Collection,
+		poll = filterChainCollection,
+	)
 class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 
 	'''version: IntProperty(
