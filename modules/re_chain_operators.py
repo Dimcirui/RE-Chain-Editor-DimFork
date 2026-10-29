@@ -2158,7 +2158,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	CollisionGroup : bpy.props.BoolProperty(
 		name="Collision Group",
-		description="A collision pass whose effect is unknown",
+		description="Collides with the nodes of the other groups in this file, when the two nodes' Collision Filter Flags share a bit",
 		default = False)
 	EnablePartBlend : bpy.props.BoolProperty(
 		name="Enable Part Blend",
@@ -2178,7 +2178,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	StretchBoth : bpy.props.BoolProperty(
 		name="Stretch Both",
-		description="While it is on, the angle limits are skipped. Its other effects are unknown",
+		description="Solves the length constraint and the angle limits from both ends: once from root to tip and once from tip to root, then takes the average",
 		default = False)
 	EndRotConstraint : bpy.props.BoolProperty(
 		name="End Rot Constraint",
@@ -2203,7 +2203,7 @@ class WM_OT_SetAttrFlags(Operator):
 		default = False)
 	StretchBothAutoScale : bpy.props.BoolProperty(
 		name="Stretch Both Auto Scale",
-		description="Its effect is unknown",
+		description="With Stretch Both on: once the chain is stretched, its lengths grow to match instead of pulling back; it only keeps the chain from getting shorter",
 		default = False)
 	
 	def draw(self,context):
@@ -2224,10 +2224,10 @@ class WM_OT_SetAttrFlags(Operator):
 			#Greyed when another switch keeps the flag from doing anything
 			if key in GROUP_COLLISION_FLAGS and not isSetting:
 				row.active = not self.CollisionDefault
-			elif isChain2 and key == "AngleLimit":
-				row.active = not self.StretchBoth
 			elif isChain2 and key == "AngleLimitRestitution":
-				row.active = self.AngleLimit and not self.StretchBoth
+				row.active = self.AngleLimit
+			elif key == "StretchBothAutoScale":
+				row.active = self.StretchBoth
 			row.prop(self,key,text=flagLabel(key))
 		
 	@classmethod
@@ -2450,12 +2450,20 @@ class WM_OT_SetSettingAttrFlags(Operator):
 		default = False)
 	IgnoreSameGroupCollision : bpy.props.BoolProperty(
 		name="Ignore Same Setting Group Collision",
-		description="Groups of the same setting do not collide with each other",
+		description="Read in self collision, between groups of the same setting. Its exact effect is unknown",
 		default = False)
 	UseReduceDistanceCurve : bpy.props.BoolProperty(
 		name="Use Reduce Distance Curve",
-		description="Follows the owner by the speed curve",
+		description="Reduce Self Distance Rate follows a curve of the chain root's speed (m/s): the Settings Sub Data list",
 		default = False)
+	#chain2: the two Virtual Ground bits as one choice
+	VirtualGroundType : bpy.props.EnumProperty(
+		name="Virtual Ground",
+		description="The ground plane of groups with Virtual Ground ticked: Root is at the character's height, Target at the prefab's Virtual Ground Target Height (a world height)",
+		items=[ ("NONE", "None", "No virtual ground"),
+				("ROOT", "Root", "A ground at the character's height (or the object it is attached to)"),
+				("TARGET", "Target", "A ground at the prefab's Virtual Ground Target Height"),
+			  ])
 	"""
 	VirtualGroundMask : bpy.props.BoolProperty(
 		name="Virtual Ground Mask",
@@ -2466,8 +2474,11 @@ class WM_OT_SetSettingAttrFlags(Operator):
 		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
 		layout = self.layout
 		layout.prop(self,"Default",text=flagLabel("Default"))
-		layout.prop(self,"VirtualGroundRoot",text=flagLabel("VirtualGroundRoot"))
-		layout.prop(self,"VirtualGroundTarget",text=flagLabel("VirtualGroundTarget"))
+		if isChain2:
+			layout.prop(self,"VirtualGroundType")
+		else:
+			layout.prop(self,"VirtualGroundRoot",text=flagLabel("VirtualGroundRoot"))
+			layout.prop(self,"VirtualGroundTarget",text=flagLabel("VirtualGroundTarget"))
 		layout.prop(self,"IgnoreSameGroupCollision",text=flagLabel("IgnoreSameGroupCollision"))
 		if isChain2:
 			layout.prop(self,"UseReduceDistanceCurve",text=flagLabel("UseReduceDistanceCurve"))
@@ -2480,6 +2491,10 @@ class WM_OT_SetSettingAttrFlags(Operator):
 	def execute(self, context):
 		
 	
+		#Both bits act as Root; they are kept as they are unless another type is picked
+		if self.VirtualGroundType != self.virtualGroundTypeOf(self.VirtualGroundRoot,self.VirtualGroundTarget):
+			self.VirtualGroundRoot = self.VirtualGroundType == "ROOT"
+			self.VirtualGroundTarget = self.VirtualGroundType == "TARGET"
 		flagClass = chainSettingsAttrFlags()
 		for key in flagClass.flagDict:
 			if hasattr(self,key):
@@ -2511,9 +2526,13 @@ class WM_OT_SetSettingAttrFlags(Operator):
 			if hasattr(self,key):
 				#print(key)
 				setattr(self,key,flagClass.flagDict[key]["enabled"])
-			
+		self.VirtualGroundType = self.virtualGroundTypeOf(self.VirtualGroundRoot,self.VirtualGroundTarget)
 		return context.window_manager.invoke_props_dialog(self)
-	
+
+	@staticmethod
+	def virtualGroundTypeOf(root,target):
+		return "ROOT" if root else "TARGET" if target else "NONE"
+
 #Chain Jiggle
 class chainJiggleAttrFlags(AndFlags):
 	def __init__(self):

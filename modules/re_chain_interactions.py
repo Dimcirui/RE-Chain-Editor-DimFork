@@ -4,6 +4,8 @@
 #group & node & collision in chain. External ones (the Reference Colliders collection, a CLSP in the game) by the 64-bit
 #CLSP mask (Flags A low 32 bits, B high), in chain2 and chain version 55 and above only. Chain Collisions and Scene
 #Colliders switch each kind on, from the group's attribute flags or its setting's with Collision from Setting.
+#chain2 only: the file's own collisions skip groups whose Exe Order is below their Min Exe Order, and Collision Group
+#adds the other groups of the file whose colliding nodes share a Collision Filter Flags bit with the group's.
 #With no reference collection (or the chain's own), the chain's own collisions are the external ones: most pfbs set the
 #chain to collide with external colliders only.
 import bpy
@@ -21,9 +23,10 @@ INTERNAL_COLOR = (1.0,0.55,0.0,1.0)
 EXTERNAL_COLOR = (0.0,0.8,1.0,1.0)
 HIDDEN_OPACITY = 0.35#Of the set opacity, for the parts behind other geometry
 
-#Group attribute flags: (Collision from Setting, Chain Collisions, Scene Colliders) per format
+#Group attribute flags: (Collision from Setting, Chain Collisions, Collision Group, Scene Colliders) per format
 COLLISION_DEFAULT = 0x8
 COLLISION_MODEL = 0x20
+COLLISION_GROUP = 0x100
 COLLISION_CHARACTER = {"chain":0x20000,"chain2":0x10000}
 FULL_MASK = (1 << 64) - 1
 
@@ -42,6 +45,7 @@ class ChainInfo():
 			version = 0
 		self.hasCLSP = self.fileType == "chain2" or version >= 55
 		ownCollisions = collisionsOf(collection)
+		self.own = set(ownCollisions)
 		if not self.hasCLSP:
 			self.internal,self.external = ownCollisions,[]
 		elif reference == None or reference == collection:
@@ -61,16 +65,31 @@ def externalMask(colObj):
 def switches(attrFlags,fileType):
 	return bool(attrFlags & COLLISION_MODEL), bool(attrFlags & COLLISION_CHARACTER[fileType])
 
-def groupSwitches(groupObj,fileType):
+def groupCollisionAttr(groupObj):
+	"""The attribute flags a group takes its collision switches from: its own, or its setting's with Collision from Setting."""
 	attrFlags = groupObj.re_chain_chaingroup.attrFlags
 	setting = groupObj.parent
 	if attrFlags & COLLISION_DEFAULT and setting != None and setting.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS":
 		attrFlags = setting.re_chain_chainsettings.groupDefaultAttr
-	return switches(attrFlags,fileType)
+	return attrFlags
+
+def groupSwitches(groupObj,fileType):
+	return switches(groupCollisionAttr(groupObj),fileType)
+
+def nodesOf(groupObj):
+	return [child for child in groupObj.children_recursive if child.get("TYPE",None) == "RE_CHAIN_NODE"]
+
+def collidingNodeFilters(nodes):
+	"""The Collision Filter Flags of the nodes that have a collision shape (MH Wilds: Sphere or Capsule, with a radius)."""
+	return [node.re_chain_chainnode.collisionFilterFlags for node in nodes if node.re_chain_chainnode.collisionShape in ("1","2") and node.re_chain_chainnode.collisionRadius > 0]
+
+def skipsGroup(colObj,groupObj,info):
+	"""chain2: the file's own collision skips a group whose Exe Order is below the collision's Min Exe Order."""
+	return info.fileType == "chain2" and colObj in info.own and groupObj.re_chain_chaingroup.rotationOrder < colObj.re_chain_chaincollision.minExeOrder
 
 def groupInteractions(groupObj,info):
-	"""{collision object: "internal" or "external"} for a chain group or sub group."""
-	nodes = [child for child in groupObj.children_recursive if child.get("TYPE",None) == "RE_CHAIN_NODE"]
+	"""{collision or other chain group object: "internal" or "external"} for a chain group or sub group."""
+	nodes = nodesOf(groupObj)
 	if groupObj.get("TYPE",None) == "RE_CHAIN_SUBGROUP":#Flags and masks are the parent group's
 		groupObj = groupObj.re_chain_chainsubgroup.parentGroup
 		if groupObj == None:
@@ -81,13 +100,21 @@ def groupInteractions(groupObj,info):
 		groupFilter = groupObj.re_chain_chaingroup.collisionFilterFlags if info.fileType == "chain" else -1
 		nodeFilters = [groupFilter & node.re_chain_chainnode.collisionFilterFlags for node in nodes]
 		for colObj in info.internal:
+			if skipsGroup(colObj,groupObj,info):
+				continue
 			colFilter = colObj.re_chain_chaincollision.collisionFilterFlags
 			if any(nodeFilter & colFilter for nodeFilter in nodeFilters):
 				result[colObj] = "internal"
+	if info.fileType == "chain2" and groupCollisionAttr(groupObj) & COLLISION_GROUP:
+		ownFilters = collidingNodeFilters(nodes)
+		for otherObj in info.collection.all_objects:
+			if otherObj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP" and otherObj != groupObj:
+				if any(ownFilter & otherFilter for ownFilter in ownFilters for otherFilter in collidingNodeFilters(nodesOf(otherObj))):
+					result[otherObj] = "internal"
 	if externalOn and info.hasCLSP:
 		mask = clspMask(groupObj.re_chain_chaingroup.clspFlags0,groupObj.re_chain_chaingroup.clspFlags1)
 		for colObj in info.external:
-			if mask & externalMask(colObj):
+			if mask & externalMask(colObj) and not skipsGroup(colObj,groupObj,info):
 				result[colObj] = "external"
 	return result
 

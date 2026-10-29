@@ -670,8 +670,8 @@ CHAIN_COLLISION_SHAPE_ITEMS = [
 	("TCAPSULE", "Tapered Capsule", "A capsule between the two selected bones with its own end radius", 2),
 	("OBB", "OBB", "A box on the selected bone, drawn as a wire cube. Move and rotate it; its scale is its half extents", 3),
 	("PLANE", "Plane", "A plane through the selected bone with its normal along the object's Y. Remove its Child Of constraint for a plane on the chain's owner", 4),
-	("LINESPHERE", "Line Sphere", "Drawn as a sphere on the selected bone. How the game uses this shape is unknown", 5),
-	("LERPSPHERE", "Lerp Sphere", "Drawn as a sphere on the selected bone. How the game uses this shape is unknown", 6),
+	("LINESPHERE", "Line Sphere", "Drawn as a sphere on the selected bone. MH Wilds does not support this shape: it never collides", 5),
+	("LERPSPHERE", "Lerp Sphere", "Drawn as a sphere on the selected bone. MH Wilds does not support this shape: it never collides", 6),
 	]
 CLSP_COLLISION_SHAPE_ITEMS = CHAIN_COLLISION_SHAPE_ITEMS[:3] + [
 	("OBB", "Box (OBB)", "A box on the selected bone, drawn as a wire cube. Move and rotate it; its scale is its half extents", 3),
@@ -927,7 +927,7 @@ class chainToolPanelPropertyGroup(bpy.types.PropertyGroup):
 	)
 	highlightInteractions: BoolProperty(
 		name="Highlight Interactions",
-		description="In Object Mode, outline what the selection collides with: the collisions of a selected chain group, sub group, node or link, or the chain groups and links a selected collision is hit by. Orange: internal collisions (the chain's own, by Collision Filter Flags). Blue: external colliders (the Reference Colliders, by the CLSP Flags mask; chain2 and chain version 55 and above). The Chain Collisions and Scene Colliders switches of the group, or of its setting with Collision from Setting, are taken into account",
+		description="In Object Mode, outline what the selection collides with: the collisions of a selected chain group, sub group, node or link, or the chain groups and links a selected collision is hit by. Orange: internal collisions (the chain's own, by Collision Filter Flags). Blue: external colliders (the Reference Colliders, by the CLSP Flags mask; chain2 and chain version 55 and above). The Chain Collisions and Scene Colliders switches of the group, or of its setting with Collision from Setting, are taken into account. In chain2, Collision Group also outlines the other groups the nodes collide with, and a collision's Min Exe Order is taken into account",
 		default = True,
 	)
 	highlightOpacity: FloatProperty(
@@ -990,7 +990,7 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		)
 	defaultSettingIdx: IntProperty(
 		name = "Default Setting Index",
-		description="Picks the chain setting (in export order, by name) whose Group Default Attribute switches the link collisions on. The setting that groups whose setting ID matches none fall back to is the one marked Default in its Setting Attribute Flags, not this one",#TODO Add description
+		description="Picks the chain setting (counted in ID order) whose Group Default Attribute switches the link collisions on. The setting that groups whose setting ID matches none fall back to is the one marked Default in its Setting Attribute Flags, not this one",#TODO Add description
 		default = 0,
 		)
 	calculateMode: EnumProperty(
@@ -1195,6 +1195,23 @@ def setChainHeaderData(ChainHeaderData,targetObject,isChain2 = False):
 	ChainHeaderData.collisionFilterHit7 = targetObject.re_chain_header.collisionFilterHitBits7
 	
 
+WIND_TYPES = [("0", "WindType_None", "No wind", 0),
+			  ("1", "WindType_WindOrSpring", "The wind of the components below", 1),
+			  ("2", "WindType_GravityWave", "No wind in MH Wilds, the same as None", 2),
+			  ("3", "WindType_WindWave", "No wind in MH Wilds, the same as None", 3)]
+
+def getWindTypes(self, context):
+	#MH Wilds (chain2) blows only with Wind Or Spring; Gravity Wave and Wind Wave act as None
+	try:
+		isChain2 = bpy.context.scene.re_chain_toolpanel.chainFileType == "chain2"
+	except Exception:
+		isChain2 = False
+	if not isChain2:
+		return WIND_TYPES
+	#Keep a hidden type the object already has (read raw, so this callback is not asked again)
+	stored = self.get("windType",3) if self is not None else 3
+	return WIND_TYPES[:2] + ([WIND_TYPES[stored]] if stored in (2,3) else [])
+
 class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 
 	id: IntProperty(
@@ -1220,26 +1237,22 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 	windType: EnumProperty(
 		name="Wind Type",
 		description="Apply Data to attribute.",
-		items=[ ("0", "WindType_None", ""),
-				("1", "WindType_WindOrSpring", ""),
-				("2", "WindType_GravityWave", ""),
-				("3", "WindType_WindWave", ""),
-			  ],
-		default = "3",
+		items=getWindTypes,
+		default = 3,
 		)
 	randomDamping: FloatProperty(
 		name = "Random Damping",
-		description="Random Damping",#TODO Add description
+		description="Scales the wind by a random factor between 1 - this and 1, drawn again every Random Damping Cycle (0 keeps the wind steady)",
 		default = 0.5,
 		)
 	randomDampingCycle: FloatProperty(
 		name = "Random Damping Cycle",
-		description="Random Damping Cycle",#TODO Add description
+		description="In 1/60 s units: how long each Random Damping factor holds (the next one comes after this x 0.5 to 1), and how often Random Cycle Scaling draws a new scale",
 		default = 3.0,
 		)
 	randomCycleScaling: FloatProperty(
 		name = "Random Cycle Scaling",
-		description="s scales each cycle by clamp(2 s R + 1 - s, 0.1, 2) for a random R and starts at a random phase; 0 starts every component at phase -interval with scale 1. Usually 1.0",#TODO Add description
+		description="s stretches every component's Cycle and Interval by one random scale, clamp(1 - s + 2 s R, 0.1, 2) for R between 0 and 1, drawn again every Random Damping Cycle; above 0 each component also starts at a random phase. 0 keeps the scale 1 and starts every component at the start of its Interval. Common values are 0 and 1",
 		default = 1.0,
 		)
 	
@@ -1261,7 +1274,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	phaseShift0: FloatProperty(
 		name = "Direction 0 Phase Shift",
-		description="Direction 0 Phase Shift",#TODO Add description
+		description="MH Wilds does not read this field",
 		default = 0.0,
 		)
 	cycle0: FloatProperty(
@@ -1271,7 +1284,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	interval0: FloatProperty(
 		name = "Direction 0 Interval",
-		description="Direction 0 Interval",#TODO Add description
+		description="At the start of each cycle the wind of this component is 0 for this long (also once on load)",
 		default = 30.0,
 		)
 	
@@ -1293,7 +1306,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	phaseShift1: FloatProperty(
 		name = "Direction 1 Phase Shift",
-		description="Direction 1 Phase Shift",#TODO Add description
+		description="MH Wilds does not read this field",
 		default = 0.0,
 		)
 	cycle1: FloatProperty(
@@ -1303,7 +1316,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	interval1: FloatProperty(
 		name = "Direction 1 Interval",
-		description="Direction 1 Interval",#TODO Add description
+		description="At the start of each cycle the wind of this component is 0 for this long (also once on load)",
 		default = 0.0,
 		)
 	
@@ -1325,7 +1338,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	phaseShift2: FloatProperty(
 		name = "Direction 2 Phase Shift",
-		description="Direction 2 Phase Shift",#TODO Add description
+		description="MH Wilds does not read this field",
 		default = 0.0,
 		)
 	cycle2: FloatProperty(
@@ -1335,7 +1348,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	interval2: FloatProperty(
 		name = "Direction 2 Interval",
-		description="Direction 2 Interval",#TODO Add description
+		description="At the start of each cycle the wind of this component is 0 for this long (also once on load)",
 		default = 0.0,
 		)
 	
@@ -1357,7 +1370,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	phaseShift3: FloatProperty(
 		name = "Direction 3 Phase Shift",
-		description="Direction 3 Phase Shift",#TODO Add description
+		description="MH Wilds does not read this field",
 		default = 0.0,
 		)
 	cycle3: FloatProperty(
@@ -1367,7 +1380,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	interval3: FloatProperty(
 		name = "Direction 3 Interval",
-		description="Direction 3 Interval",#TODO Add description
+		description="At the start of each cycle the wind of this component is 0 for this long (also once on load)",
 		default = 0.0,
 		)
 	
@@ -1389,7 +1402,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	phaseShift4: FloatProperty(
 		name = "Direction 4 Phase Shift",
-		description="Direction 4 Phase Shift",#TODO Add description
+		description="MH Wilds does not read this field",
 		default = 0.0,
 		)
 	cycle4: FloatProperty(
@@ -1399,7 +1412,7 @@ class chainWindSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	interval4: FloatProperty(
 		name = "Direction 4 Interval",
-		description="Direction 4 Interval",#TODO Add description
+		description="At the start of each cycle the wind of this component is 0 for this long (also once on load)",
 		default = 0.0,
 		)
 	
@@ -1409,7 +1422,9 @@ def getWindSettings(WindSettingsData,targetObject,isChain2 = False):
 	targetObject.re_chain_windsettings.id = WindSettingsData.id
 	targetObject.re_chain_windsettings.windDirection = str(WindSettingsData.windDirection)
 	targetObject.re_chain_windsettings.windCount = WindSettingsData.windCount
-	targetObject.re_chain_windsettings.windType = str(WindSettingsData.windType)
+	if WindSettingsData.windType in (0,1,2,3):
+		#Stored raw: chain2 lists only None and Wind Or Spring, but another type from the file is kept
+		targetObject.re_chain_windsettings["windType"] = WindSettingsData.windType
 	targetObject.re_chain_windsettings.randomDamping = WindSettingsData.randomDamping
 	targetObject.re_chain_windsettings.randomDampingCycle = WindSettingsData.randomDampingCycle
 	targetObject.re_chain_windsettings.randomCycleScaling = WindSettingsData.randomCycleScaling
@@ -1526,7 +1541,8 @@ class CHAIN_UL_ChainSettingsSubDataList(bpy.types.UIList):
 		return {'PASS_THROUGH'}
 
 
-SPRING_CALC_TYPES = [("0", "ChainSpringCalcType_Position", "", 0), ("1", "ChainSpringCalcType_Rotation", "", 1),
+SPRING_CALC_TYPES = [("0", "ChainSpringCalcType_Position", "Pulls the node straight back to its rest position", 0),
+					 ("1", "ChainSpringCalcType_Rotation", "Turns the node back to its rest direction about its parent, keeping the distance. Much weaker than Position at the same Spring Force", 1),
 					 ("2", "ChainSpringCalcType_VFRPosition", "", 2), ("3", "ChainSpringCalcType_VFRRotation", "", 3)]
 
 def getSpringCalcTypes(self, context):
@@ -1648,7 +1664,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	secondDampingSpeed: FloatProperty(
 		name = "Second Damping Speed",
-		description = "The node speed (per step) from which the second damping applies; 0 turns the second damping off",#TODO Add description
+		description = "The node speed (m/s) from which the second damping applies; 0 turns the second damping off",
 		default = 0.00,
 		)
 	minDamping: FloatProperty(
@@ -1689,7 +1705,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	springLimitRate: FloatProperty(
 		name = "Spring Limit Rate",
-		description = "Spring Limit Rate\nVersion 24 and above only",#TODO Add description
+		description = "Above 0 the spring leaves a node alone inside a cone around its angle limit direction (half angle = half the parent node's angle limit x this) and outside pulls it back only to the cone. 1 or more: the spring never acts. Needs Enabled Angle Limit and an angle limit on the parent node\nVersion 24 and above only",
 		default = 0.00,
 		)
 	springMaxVelocity: FloatProperty(
@@ -1728,7 +1744,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	secondReduceDistanceSpeed: FloatProperty(
 		name = "Second Reduce Distance Speed",
-		description = "The root speed (per step) above which Second Reduce Distance Rate is used",#TODO Add description
+		description = "The chain root's speed (m/s) above which Second Reduce Distance Rate is used; 0 never switches",
 		default = 0.00,
 		)
 	friction: FloatProperty(
@@ -1768,7 +1784,7 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	angleLimitInteractionRatio: FloatProperty(
 		name = "Angle Limit Interaction Ratio",
-		description = "The game reads it, but its effect on the angle limits is not confirmed",#TODO Add description
+		description = "MH Wilds does not read this field: the parent node always takes 0.3 of an angle limit correction",
 		default = 0.5,
 		soft_min = 0.00,
 		soft_max = 1.00,
@@ -1843,9 +1859,9 @@ class chainSettingsPropertyGroup(bpy.types.PropertyGroup):
 		)
 	motionForceCalcType: EnumProperty(
 		name="Motion Force Calculation Type (chain2)",
-		description="How the motion force is worked out: Motion Force, or Init Shape Force, which takes another path each substep and on a pose reset. The exact effect of Init Shape Force is unknown\nVersion 9 and above",
+		description="How the motion force is worked out. Init Shape Force is usually used on props, NPCs and environment objects\nVersion 9 and above",
 		items=[ ("0", "MotionForceCalcType_MotionForce", ""),
-				("1", "MotionForceCalcType_InitShapeForce", ""),
+				("1", "MotionForceCalcType_InitShapeForce", "On each pose reset, works out one fixed force per free node that cancels gravity and pushes along the node's direction at that moment, by Motion Force. The force then turns with the chain root; changes to Motion Force or the pose apply from the next reset"),
 			  ]
 		)
 	#chain2 subdata
@@ -2107,7 +2123,7 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 		)
 	endRotConstMax: FloatProperty(
 		name = "End Rotation Constant Max",
-		description = "Its effect is unknown. Usually 4 pi\nVersion 35 and above only",#TODO Add description
+		description = "The wrap-around of End Rot Constraint's twist, not a cap: past this value the twist steps back by it. 4 pi (the usual value) wraps without changing the pose\nVersion 35 and above only",
 		default = 12.566370964050293,
 		)
 	tagCount: IntProperty(
@@ -2148,10 +2164,10 @@ class chainGroupPropertyGroup(bpy.types.PropertyGroup):
 	nodeInterpolationMode: EnumProperty(
 		name="Node Interpolation Mode (chain2)",
 		description="chain2: how the nodes Interpolation Count skips are filled in at output",
-		items=[ ("0", "NodeInterpolationMode_None", ""),
-				("1", "NodeInterpolationMode_Linear", ""),
-				("2", "NodeInterpolationMode_SplineLerp", ""),
-				("3", "NodeInterpolationMode_FastSpline", ""),
+		items=[ ("0", "NodeInterpolationMode_None", "Each skipped node follows the one before it rigidly, keeping its rest offset"),
+				("1", "NodeInterpolationMode_Linear", "Skipped nodes lie on the straight line between the simulated ones, spaced by rest length; position only. With only 2 simulated nodes every mode but None works this way"),
+				("2", "NodeInterpolationMode_SplineLerp", "Skipped nodes lie on a spline through all the simulated nodes"),
+				("3", "NodeInterpolationMode_FastSpline", "Skipped nodes lie on a curve through each three neighbouring simulated nodes; a very short span falls back to the midpoint"),
 			  ],
 		default = "3",
 		)
@@ -2267,7 +2283,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		)
 	collisionFilterFlags: IntProperty(
 		name="Collision Filter Flags",
-		description="Filters self collision only: nodes at least two apart collide when these AND to non-zero",
+		description="Collision channels: two things collide only when their flags share a bit. Compared with the other node in Self Collision and Collision Group, and with the chain file's own collision shapes in Chain Collisions. CLSP shapes, the stage and link collisions do not use it",
 		default = -1,
 		)
 	capsuleStretchRate0: FloatProperty(
@@ -2293,7 +2309,7 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 		)
 	windCoef: FloatProperty(
 		name = "Wind Coefficient",
-		description = "Wind Coefficient",#TODO Add description
+		description = "Scales the wind from the Wind Settings, not the stage wind",
 		default = 1.0,
 		soft_min=0.000,
 		soft_max=20.000
@@ -2309,10 +2325,10 @@ class chainNodePropertyGroup(bpy.types.PropertyGroup):
 	collisionShape: EnumProperty(
 		name="Collision Shape",
 		description="Apply Data to attribute.",
-		items=[ ("0", "ChainNodeCollisionShape_None", "No scene collision"),
+		items=[ ("0", "ChainNodeCollisionShape_None", "No collision"),
 				("1", "ChainNodeCollisionShape_Sphere", "A sphere on the node (free nodes only)"),
 				("2", "ChainNodeCollisionShape_Capsule", "A capsule to the next node, ends set by the Capsule Stretch Rates; ignored on the last node"),
-				("3", "ChainNodeCollisionShape_StretchCapsule", "No scene collision in MH Wilds"),
+				("3", "ChainNodeCollisionShape_StretchCapsule", "MH Wilds skips this shape in every collision, the same as None. Capsule already shrinks its ends by the Capsule Stretch Rates"),
 			   ],
 		default = "1",
 		update = update_NodeCapsule
@@ -2570,6 +2586,26 @@ class collisionSubDataPropertyGroup(bpy.types.PropertyGroup):
 		default = 0,
 		)
 
+#chain2 reads the collision's rotation order field as an Exe Order gate. It is drawn as a number over the same data:
+#0 to 5 in Rotation Order, any other value in the object's raw file value, as import keeps it
+def getMinExeOrder(self):
+	value = self.get("rotationOrder",0)
+	obj = self.id_data
+	if value == 0 and type(obj).__name__ == "Object" and FILE_ROTATION_ORDER in obj:
+		return obj[FILE_ROTATION_ORDER]
+	return value
+
+def setMinExeOrder(self,value):
+	obj = self.id_data
+	isObject = type(obj).__name__ == "Object"
+	if 0 <= value <= 5 or not isObject:
+		self["rotationOrder"] = min(max(value,0),5)
+		if isObject and FILE_ROTATION_ORDER in obj:
+			del obj[FILE_ROTATION_ORDER]
+	else:
+		self["rotationOrder"] = 0
+		obj[FILE_ROTATION_ORDER] = value
+
 class chainCollisionPropertyGroup(bpy.types.PropertyGroup):
 	rotationOrder: EnumProperty(
 		name="Rotation Order",
@@ -2581,6 +2617,13 @@ class chainCollisionPropertyGroup(bpy.types.PropertyGroup):
 				("4", "RotationOrder_YXZ", ""),
 				("5", "RotationOrder_XZY", ""),
 			   ]
+		)
+	minExeOrder: IntProperty(
+		name="Min Exe Order",
+		description="Groups whose Exe Order is below this skip this collision shape; 0 lets every group collide. It gates only the groups of this file",
+		get = getMinExeOrder,
+		set = setMinExeOrder,
+		min = 0,
 		)
 	collisionOffset: FloatVectorProperty(
 		name = "Collision Offset",
@@ -2621,15 +2664,15 @@ class chainCollisionPropertyGroup(bpy.types.PropertyGroup):
 		)
 	chainCollisionShape: EnumProperty(
 		name="Chain Collision Shape",
-		description="The chain's own (model) collision shapes. How MH Wilds uses them is not verified; this list is NOT the CLSP shape kinds (0 sphere, 1 capsule, 2 box, 3 tapered capsule, 4 plane)",
+		description="The chain's own (model) collision shapes; this list is NOT the CLSP shape kinds (0 sphere, 1 capsule, 2 box, 3 tapered capsule, 4 plane)",
 		items=[ ("0", "ChainCollisionShape_None", ""),
-				("1", "ChainCollisionShape_Sphere", ""),
+				("1", "ChainCollisionShape_Sphere", "MH Wilds reads the joint only, not the pair joint"),
 				("2", "ChainCollisionShape_Capsule", ""),
-				("3", "ChainCollisionShape_OBB", ""),
+				("3", "ChainCollisionShape_OBB", "MH Wilds reads the joint only, not the radius, end radius or pair joint"),
 				("4", "ChainCollisionShape_Plane", ""),
 				("5", "ChainCollisionShape_TaperedCapsule", ""),
-				("6", "ChainCollisionShape_LineSphere", ""),
-				("7", "ChainCollisionShape_LerpSphere", ""),
+				("6", "ChainCollisionShape_LineSphere", "MH Wilds does not support this shape: it never collides"),
+				("7", "ChainCollisionShape_LerpSphere", "MH Wilds does not support this shape: it never collides"),
 			   ]
 		)
 	subDataCount: IntProperty(

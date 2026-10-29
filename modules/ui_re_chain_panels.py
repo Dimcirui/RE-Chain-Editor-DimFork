@@ -359,6 +359,9 @@ class OBJECT_PT_WindSettingsPanel(Panel):
 		col2.prop(re_chain_windsettings, "windDirection") 
 		col2.prop(re_chain_windsettings, "windCount")
 		col2.prop(re_chain_windsettings, "windType")
+		#MH Wilds: only Wind Or Spring blows, and the phase shifts are not read
+		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+		col2 = greyed(col2,not isChain2 or re_chain_windsettings.windType == "1")
 		col2.prop(re_chain_windsettings, "randomDamping")
 		col2.prop(re_chain_windsettings, "randomDampingCycle")
 		col2.prop(re_chain_windsettings, "randomCycleScaling")
@@ -366,35 +369,35 @@ class OBJECT_PT_WindSettingsPanel(Panel):
 		col2.prop(re_chain_windsettings, "dir0")
 		col2.prop(re_chain_windsettings, "min0")
 		col2.prop(re_chain_windsettings, "max0")
-		col2.prop(re_chain_windsettings, "phaseShift0")
+		greyed(col2,not isChain2).prop(re_chain_windsettings, "phaseShift0")
 		col2.prop(re_chain_windsettings, "cycle0")
 		col2.prop(re_chain_windsettings, "interval0")
 		col2.separator()
 		col2.prop(re_chain_windsettings, "dir1")
 		col2.prop(re_chain_windsettings, "min1")
 		col2.prop(re_chain_windsettings, "max1")
-		col2.prop(re_chain_windsettings, "phaseShift1")
+		greyed(col2,not isChain2).prop(re_chain_windsettings, "phaseShift1")
 		col2.prop(re_chain_windsettings, "cycle1")
 		col2.prop(re_chain_windsettings, "interval1")
 		col2.separator()
 		col2.prop(re_chain_windsettings, "dir2")
 		col2.prop(re_chain_windsettings, "min2")
 		col2.prop(re_chain_windsettings, "max2")
-		col2.prop(re_chain_windsettings, "phaseShift2")
+		greyed(col2,not isChain2).prop(re_chain_windsettings, "phaseShift2")
 		col2.prop(re_chain_windsettings, "cycle2")
 		col2.prop(re_chain_windsettings, "interval2")
 		col2.separator()
 		col2.prop(re_chain_windsettings, "dir3")
 		col2.prop(re_chain_windsettings, "min3")
 		col2.prop(re_chain_windsettings, "max3")
-		col2.prop(re_chain_windsettings, "phaseShift3")
+		greyed(col2,not isChain2).prop(re_chain_windsettings, "phaseShift3")
 		col2.prop(re_chain_windsettings, "cycle3")
 		col2.prop(re_chain_windsettings, "interval3")
 		col2.separator()
 		col2.prop(re_chain_windsettings, "dir4")
 		col2.prop(re_chain_windsettings, "min4")
 		col2.prop(re_chain_windsettings, "max4")
-		col2.prop(re_chain_windsettings, "phaseShift4")
+		greyed(col2,not isChain2).prop(re_chain_windsettings, "phaseShift4")
 		col2.prop(re_chain_windsettings, "cycle4")
 		col2.prop(re_chain_windsettings, "interval4")
 
@@ -459,6 +462,10 @@ class OBJECT_PT_ChainSettingsPanel(Panel):
 		col2.prop(re_chain_chainsettings, "springForce")
 		greyed(col2,springOn).prop(re_chain_chainsettings, "springCalcType")
 		greyed(col2,springOn).prop(re_chain_chainsettings, "springLimitRate")
+		if isChain2 and springOn and re_chain_chainsettings.springLimitRate != 0.0:
+			note = col2.row()
+			note.alignment = 'RIGHT'
+			note.label(text="Spring Limit Rate 1 or more: the spring never acts" if re_chain_chainsettings.springLimitRate >= 1.0 else "The spring acts only outside the Spring Limit Rate cone",icon="INFO")
 		greyed(col2,springOn).prop(re_chain_chainsettings, "springMaxVelocity")
 
 		col2.prop(re_chain_chainsettings, "reduceSelfDistanceRate",slider=True)
@@ -467,9 +474,10 @@ class OBJECT_PT_ChainSettingsPanel(Panel):
 		col2.prop(re_chain_chainsettings, "friction",slider=True)
 		col2.prop(re_chain_chainsettings, "shockAbsorptionRate",slider=True)
 		col2.prop(re_chain_chainsettings, "coefOfElasticity",slider=True)
-		col2.prop(re_chain_chainsettings, "coefOfExternalForces",slider=True)
+		#Greyed: MH Wilds does not read these
+		greyed(col2,not isChain2).prop(re_chain_chainsettings, "coefOfExternalForces",slider=True)
 		col2.prop(re_chain_chainsettings, "stretchInteractionRatio",slider=True)
-		col2.prop(re_chain_chainsettings, "angleLimitInteractionRatio",slider=True)
+		greyed(col2,not isChain2).prop(re_chain_chainsettings, "angleLimitInteractionRatio",slider=True)
 		
 			
 		col2.prop(re_chain_chainsettings, "motionForce")
@@ -513,6 +521,10 @@ class OBJECT_PT_ChainSettingsSubDataPanel(Panel):
 		col1 = split.column()
 		col2 = split.column()
 		col2.label(text = f"Chain2 version 12 (MH Wilds) and above only")
+		#The list is the speed curve of Use Reduce Distance Curve, read only with that flag
+		if not re_chain_chainsettings.settingsAttrFlags & 0x10:
+			col2.label(text = "Not read: Setting Attribute Flags has no Use Reduce Distance Curve",icon="INFO")
+			col2 = greyed(col2,False)
 		col2.prop(re_chain_chainsettings,"unknQuaternion")
 		col2.prop(re_chain_chainsettings,"unknPos")
 		col2.label(text = f"Sub Data Count: {str(len(object.re_chain_chainsettings.subDataList_items))}")
@@ -577,7 +589,8 @@ class OBJECT_PT_ChainGroupPanel(Panel):
 			row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_chaingroup.collisionFilterFlags"
 		else:#chain2
 			col2.prop(re_chain_chaingroup, "interpCount")
-			col2.prop(re_chain_chaingroup, "nodeInterpolationMode")
+			#Greyed: with no count every node is simulated
+			greyed(col2,re_chain_chaingroup.interpCount != 0).prop(re_chain_chaingroup, "nodeInterpolationMode")
 		
 		col2.prop(re_chain_chaingroup, "colliderQualityLevel")
 		row = col2.row()
@@ -655,7 +668,7 @@ class OBJECT_PT_ChainNodePanel(Panel):
 		group = chainGroupOfNode(object)
 		groupAttr = group.re_chain_chaingroup.attrFlags if group != None else 0x2
 		mode = re_chain_chainnode.angleMode
-		angleOn = not isChain2 or (groupAttr & 0x2 and not groupAttr & 0x2000 and mode != "0")
+		angleOn = not isChain2 or (groupAttr & 0x2 and mode != "0")
 		greyed(col2,angleOn).prop(re_chain_chainnode, "angleLimitRad")
 		greyed(col2,angleOn and (not isChain2 or mode in ("3","4"))).prop(re_chain_chainnode, "angleLimitDistance",slider = True)
 		bounceOn = angleOn and (not isChain2 or (mode == "2" and groupAttr & 0x1000))
@@ -672,7 +685,7 @@ class OBJECT_PT_ChainNodePanel(Panel):
 		row.prop(re_chain_chainnode, "attrFlags")
 		row.operator("re_chain.set_node_attr_flags",icon='DOWNARROW_HLT', text="")
 		col2.prop(re_chain_chainnode, "windCoef",slider = True)
-		greyed(col2,not isChain2 or (groupAttr & 0x2 and not groupAttr & 0x2000)).prop(re_chain_chainnode, "angleMode")
+		greyed(col2,not isChain2 or groupAttr & 0x2).prop(re_chain_chainnode, "angleMode")
 		col2.prop(re_chain_chainnode, "collisionShape")
 		col2.prop(re_chain_chainnode, "attachType")
 		col2.prop(re_chain_chainnode, "rotationType")
@@ -739,6 +752,9 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 		layout = self.layout
 		object = context.active_object
 		re_chain_chaincollision = object.re_chain_chaincollision
+		#chain2 reads the rotation order field as an Exe Order gate
+		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+		orderProp = "minExeOrder" if isChain2 else "rotationOrder"
 
 		split = layout.split(factor=0.01)
 		col1 = split.column()
@@ -749,7 +765,7 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 		if object.get("TYPE",None) in ("RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX"):
 			if isChainCollision(object):
 				#A chain file keeps a radius, end radius and lerp on these too; what the game does with them is unknown
-				col2.prop(re_chain_chaincollision, "rotationOrder")
+				col2.prop(re_chain_chaincollision, orderProp)
 				greyed(col2,False).prop(re_chain_chaincollision, "radius")
 				greyed(col2,False).prop(re_chain_chaincollision, "endRadius")
 				greyed(col2,False).prop(re_chain_chaincollision, "lerp")
@@ -762,13 +778,15 @@ class OBJECT_PT_ChainCollisionPanel(Panel):
 				col2.prop(re_chain_chaincollision, "clspBitFlag1")
 			return
 		#if version >= 48:
-		col2.prop(re_chain_chaincollision, "rotationOrder")
+		col2.prop(re_chain_chaincollision, orderProp)
+		#MH Wilds: a sphere reads no end, only a tapered capsule an end radius, and no shape the lerp
+		shape = re_chain_chaincollision.chainCollisionShape
 		col2.prop(re_chain_chaincollision, "radius")
 		col2.prop(re_chain_chaincollision, "collisionOffset")
-		col2.prop(re_chain_chaincollision, "endCollisionOffset")	
-		col2.prop(re_chain_chaincollision, "endRadius")
+		greyed(col2,not isChain2 or shape in ("2","5")).prop(re_chain_chaincollision, "endCollisionOffset")
+		greyed(col2,not isChain2 or shape == "5").prop(re_chain_chaincollision, "endRadius")
 		#if version >= 48:
-		col2.prop(re_chain_chaincollision, "lerp") 
+		greyed(col2,not isChain2).prop(re_chain_chaincollision, "lerp")
 		col2.prop(re_chain_chaincollision, "chainCollisionShape")
 		col2.prop(re_chain_chaincollision, "subDataCount")
 		row = col2.row()
@@ -814,7 +832,9 @@ class OBJECT_PT_ChainCollisionSubDataPanel(Panel):
 		col2.alignment='RIGHT'
 		col2.use_property_split = True
 		col2.prop(re_chain_collision_subdata, "pos")
-		col2.prop(re_chain_collision_subdata, "pairPos")
+		#Greyed: an MH Wilds sphere has no pair end
+		isChain2 = context.scene.re_chain_toolpanel.chainFileType == "chain2"
+		greyed(col2,not isChain2 or object.re_chain_chaincollision.chainCollisionShape != "1").prop(re_chain_collision_subdata, "pairPos")
 		col2.prop(re_chain_collision_subdata, "rotOffset")	
 		col2.prop(re_chain_collision_subdata, "radius")
 		col2.prop(re_chain_collision_subdata, "id")
