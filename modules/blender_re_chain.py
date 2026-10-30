@@ -111,9 +111,48 @@ def getCollection(collectionName,parentCollection = None,makeNew = False):
 		collectionName = collection.name
 		if parentCollection != None:
 			parentCollection.children.link(collection)
+			keepNodeCapsuleCollectionLast(parentCollection)
 		else:
 			bpy.context.scene.collection.children.link(collection)
 	return bpy.data.collections[collectionName]
+
+def getChainEntryCollection(chainCollection):
+	"""The child collection of a chain collection that holds its wind settings, chain settings, groups and nodes."""
+	for child in chainCollection.children:
+		if child.get("TYPE",None) == "RE_CHAIN_ENTRY_COLLECTION":
+			return child
+	collection = getCollection(f"Chain Entries - {chainCollection.name}",chainCollection,makeNew = True)
+	collection["TYPE"] = "RE_CHAIN_ENTRY_COLLECTION"
+	return collection
+
+LAYER_COLLECTION_FLAGS = ("hide_viewport","holdout","indirect_only","exclude")
+def childLayerCollections(collection,child):
+	#Every view layer entry of child under collection, in a fixed order
+	def walk(layerCollection):
+		if layerCollection.collection == collection:
+			childLayer = layerCollection.children.get(child.name)
+			if childLayer != None:
+				yield childLayer
+		for layerChild in layerCollection.children:
+			yield from walk(layerChild)
+	for scene in bpy.data.scenes:
+		for viewLayer in scene.view_layers:
+			yield from walk(viewLayer.layer_collection)
+
+def keepNodeCapsuleCollectionLast(chainCollection):
+	"""Keep the node capsule collection below the chain collection's other child collections. Linking it again is
+	the only way to move it, and that resets its view layer toggles, so they are put back."""
+	children = list(chainCollection.children)
+	for child in children[:-1]:
+		if child.get("TYPE",None) != "RE_CHAIN_NODE_CAPSULE_COLLECTION":
+			continue
+		states = [{flag:getattr(layerCollection,flag) for flag in LAYER_COLLECTION_FLAGS} for layerCollection in childLayerCollections(chainCollection,child)]
+		chainCollection.children.unlink(child)
+		chainCollection.children.link(child)
+		for layerCollection,state in zip(childLayerCollections(chainCollection,child),states):
+			for flag in LAYER_COLLECTION_FLAGS:
+				if getattr(layerCollection,flag) != state[flag]:
+					setattr(layerCollection,flag,state[flag])
 def createEmpty(name,propertyList,parent = None,collection = None):
 	obj = bpy.data.objects.new( name, None )
 	obj.empty_display_size = .10
@@ -524,13 +563,7 @@ def importChainFile(filepath,options,isChain2 = False):
 			headerObj.re_chain_header.defaultSettingID = settingsList[chainFile.Header.defaultSettingIdx].id
 		lockObjTransforms(headerObj)
 		
-	"""	
-	if len(chainFile.ChainGroupList) > 0:
-		chainEntryCollection = getCollection(f"Chain Entries - {chainCollection.name}",chainCollection,makeNew = not mergedChain)
-		chainEntryCollection["TYPE"] = "RE_CHAIN_ENTRY_COLLECTION"
-	else:
-	"""
-	chainEntryCollection = chainCollection
+	chainEntryCollection = getChainEntryCollection(chainCollection) if chainFile.ChainSettingsList or chainFile.WindSettingsList else chainCollection
 	print(f"Group Count: {len(chainFile.ChainGroupList)}")
 	#WIND SETTINGS IMPORT
 	currentWindSettingsNameIndex = 0

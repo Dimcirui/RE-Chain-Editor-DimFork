@@ -3,7 +3,7 @@ import re
 import bpy
 from bpy.app.handlers import persistent
 
-from .re_chain_propertyGroups import filterChainCollection
+from .re_chain_propertyGroups import getOwningChainCollection
 
 #Blender's duplicate suffix, as in "name.chain2.001"
 DUPLICATE_SUFFIX = re.compile(r"\.\d{3,}$")
@@ -16,21 +16,6 @@ def chainFileTypeForCollection(collectionName):
 	if baseName.endswith(".clsp") or ".chain" not in baseName:
 		return None
 	return "chain2" if baseName.endswith(".chain2") else "chain"
-
-def getOwningChainCollection(obj):
-	#Collisions and links live in child collections, so walk up to the chain collection
-	parentDict = {}
-	for collection in bpy.data.collections:
-		for child in collection.children:
-			parentDict[child.name] = collection
-	for collection in obj.users_collection:
-		visited = set()
-		while collection is not None and collection.name not in visited:
-			visited.add(collection.name)
-			if filterChainCollection(None,collection):
-				return collection
-			collection = parentDict.get(collection.name)
-	return None
 
 def syncChainFileType(*args):
 	#Runs from msgbus, where an exception would reach the UI event loop

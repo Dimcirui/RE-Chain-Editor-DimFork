@@ -18,7 +18,7 @@ The file format is told by the collection name: a name ending in `.chain2` is ch
 
 Older versions of *Create Chain Header* typed new CLSP collections `RE_CHAIN_COLLECTION`. When a .blend is opened, and once when the add-on is enabled, such collections are retyped `RE_CLSP_COLLECTION`. Only a collection that is certainly a CLSP is retyped: its name ends in `.clsp`, it has no `RE_CHAIN_HEADER` object, and it has at least one collision object (`RE_CHAIN_COLLISION_SINGLE`, `RE_CHAIN_COLLISION_CAPSULE_ROOT`, `RE_CHAIN_COLLISION_PLANE` or `RE_CHAIN_COLLISION_BOX`). Each retyped collection is printed to the console. A mistyped collection that fails these checks (for example, an empty one) keeps its type; `wd_api` still exports it as CLSP because of its name.
 
-All data of a file is on objects in the root collection or its child collections (`collection.all_objects`); nothing is stored on the scene, world or other collections. Child collections made by the editor (`Chain Collisions - …`, `Chain Links - …`, `Node Capsules - …`) only organise objects.
+All data of a file is on objects in the root collection or its child collections (`collection.all_objects`); nothing is stored on the scene, world or other collections. Child collections made by the editor (`Chain Entries - …`, `Chain Collisions - …`, `Chain Links - …`, `Node Capsules - …`) only organise objects.
 
 ## wd_api
 
@@ -65,7 +65,7 @@ Every object the editor makes has a custom property `TYPE`. Records of the same 
 | `RE_CHAIN_COLLISION_BOX` | Box (OBB): a wire cube from -1 to 1 | header (chain) / none or the armature (CLSP) | `re_chain_chaincollision` | Collision shape 3 / CLSP entry, shape 2 |
 | `RE_CHAIN_LINK` | Chain link | header | `re_chain_chainlink` | Link |
 | `RE_CHAIN_LINK_COLLISION` | Collision of one node pair of a link | link | `re_chain_chainlink_collision` | Link node |
-| `RE_CHAIN_NODE_FRAME_HELPER`, `RE_CHAIN_NODE_CAPSULE` | Display only | | | not exported |
+| `RE_CHAIN_NODE_FRAME_HELPER`, `RE_CHAIN_NODE_CAPSULE`, `RE_CHAIN_NODE_CAPSULE_ROOT` | Display only (node capsules are parented to the capsule root) | | | not exported |
 
 Single collisions and capsule roots also have `re_chain_collision_subdata` (chain collision subdata).
 

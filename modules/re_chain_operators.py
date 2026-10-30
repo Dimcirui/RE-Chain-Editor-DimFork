@@ -6,7 +6,7 @@ from mathutils import Matrix,Vector,Quaternion
 
 from bpy.types import Operator
 
-from .blender_re_chain import createEmpty,createCurve,alignChains,alignChainGroups,alignCollisions,checkNameUsage,checkChainSettingsIDUsage,checkWindSettingsIDUsage,findHeaderObj,syncCollisionOffsets,createChainCollection,getCollection,createCurveEmpty,createFakeEmptySphere,lockObjTransforms,setChainBoneColor
+from .blender_re_chain import createEmpty,createCurve,alignChains,alignChainGroups,alignCollisions,checkNameUsage,checkChainSettingsIDUsage,checkWindSettingsIDUsage,findHeaderObj,syncCollisionOffsets,createChainCollection,getCollection,getChainEntryCollection,createCurveEmpty,createFakeEmptySphere,lockObjTransforms,setChainBoneColor
 from .file_re_chain import ChainHeaderData,ChainSettingsData,WindSettingsData,ChainGroupData,ChainNodeData,ChainJiggleData,ChainCollisionData,ChainLinkData,ChainLinkNode
 from .file_re_chain2 import Chain2HeaderData,Chain2SettingsData,Chain2WindSettingsData,Chain2GroupData,Chain2NodeData,Chain2JiggleData,Chain2CollisionData,Chain2LinkData,Chain2LinkNode
 from .re_chain_shapes import createBoxCollision,createPlaneCollision,createChainShapeCollision
@@ -59,8 +59,7 @@ class WM_OT_ChainFromBone(Operator):
 					chainLists.append(chainList)
 			
 			for chainList in chainLists:
-				#chainEntryCollection = getCollection(f"Chain Entries - {chainCollection.name}",chainCollection,makeNew = False)
-				chainEntryCollection = chainCollection
+				chainEntryCollection = getChainEntryCollection(chainCollection)
 				currentChainGroupIndex = 0
 				subName = "CHAIN_GROUP_"+str(currentChainGroupIndex).zfill(2)
 				while(checkNameUsage(subName,checkSubString=True)):
@@ -473,8 +472,7 @@ class WM_OT_NewChainSettings(Operator):
 		chainCollection = bpy.context.scene.re_chain_toolpanel.chainCollection
 		headerObj = findHeaderObj()
 		if chainCollection != None and headerObj != None:
-			#chainEntryCollection = getCollection(f"Chain Entries - {chainCollection.name}",chainCollection,makeNew = False)
-			chainEntryCollection = chainCollection
+			chainEntryCollection = getChainEntryCollection(chainCollection)
 			currentIndex = 0
 			name = "CHAIN_SETTINGS_" + str(currentIndex).zfill(2)
 			while(checkNameUsage(name,checkSubString=True)):
@@ -513,8 +511,7 @@ class WM_OT_NewWindSettings(Operator):
 		chainCollection = bpy.context.scene.re_chain_toolpanel.chainCollection
 		headerObj = findHeaderObj()
 		if chainCollection != None and headerObj != None:
-			#chainEntryCollection = getCollection(f"Chain Entries - {chainCollection.name}",chainCollection,makeNew = False)
-			chainEntryCollection = chainCollection
+			chainEntryCollection = getChainEntryCollection(chainCollection)
 			currentIndex = 0
 			name = "WIND_SETTINGS_" + str(currentIndex).zfill(2)
 			while(checkNameUsage(name,checkSubString=True)):
@@ -562,7 +559,7 @@ class WM_OT_NewChainJiggle(Operator):
 					parent = bpy.context.active_object
 					name = str(parent.constraints["BoneName"].subtarget)+"_JIGGLE"
 					
-			chainJiggleObj = createEmpty(name, [("TYPE","RE_CHAIN_JIGGLE")],parent,chainCollection)
+			chainJiggleObj = createEmpty(name, [("TYPE","RE_CHAIN_JIGGLE")],parent,parent.users_collection[0] if parent != None and parent.users_collection else getChainEntryCollection(chainCollection))
 			chainJiggle = ChainJiggleData()
 			getChainJiggle(chainJiggle,chainJiggleObj)
 			chainJiggleObj.empty_display_size = .2
@@ -1526,7 +1523,9 @@ class WM_OT_HideNonNodes(Operator):
 	bl_options = {'UNDO'}
 	def execute(self, context):
 		for obj in bpy.context.scene.objects:
-			if obj.get("TYPE",None) != "RE_CHAIN_NODE" and obj.get("TYPE",None) != "RE_CHAIN_NODE_FRAME_HELPER":
+			if obj.get("TYPE",None) in ("RE_CHAIN_NODE_CAPSULE","RE_CHAIN_NODE_CAPSULE_ROOT"):#Drawn from its node
+				obj.hide_viewport = False
+			elif obj.get("TYPE",None) != "RE_CHAIN_NODE" and obj.get("TYPE",None) != "RE_CHAIN_NODE_FRAME_HELPER":
 				obj.hide_viewport = True
 			else:
 				if not obj.get("isLastNode") and bpy.context.scene.re_chain_toolpanel.hideLastNodeAngleLimit:
@@ -1543,7 +1542,7 @@ class WM_OT_HideNonCollisions(Operator):
 
 		for obj in bpy.context.scene.objects:
 			objType = obj.get("TYPE",None)
-			if objType in ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_CAPSULE_START","RE_CHAIN_COLLISION_CAPSULE_END","RE_CHAIN_NODE_CAPSULE",
+			if objType in ("RE_CHAIN_COLLISION_SINGLE","RE_CHAIN_COLLISION_CAPSULE_ROOT","RE_CHAIN_COLLISION_CAPSULE_START","RE_CHAIN_COLLISION_CAPSULE_END",
 						   "RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX"):
 				obj.hide_viewport = False
 			else:
@@ -1907,7 +1906,7 @@ class WM_OT_AlignBoneTailsToAxis(Operator):
 def getChainSettingObjects(self,context):
 	objectList = []
 	if context.scene.re_chain_toolpanel.chainCollection != None:
-		for obj in context.active_object.users_collection[0].all_objects:
+		for obj in context.scene.re_chain_toolpanel.chainCollection.all_objects:
 			if obj.get("TYPE") == "RE_CHAIN_CHAINSETTINGS":
 				objectList.append((obj.name,obj.name,""))
 	return objectList

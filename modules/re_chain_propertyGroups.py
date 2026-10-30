@@ -64,6 +64,21 @@ def filterChainCollection(self, collection):
 	#I messed up with the mesh editor and accidentally left the type of mdf collections as RE_CHAIN_COLLECTION, so this long check is needed
     return True if ((collection.get("~TYPE") == "RE_CHAIN_COLLECTION" or collection.get("~TYPE") == "RE_CLSP_COLLECTION") and (".chain" in collection.name or ".clsp" in collection.name)) else False
 
+def getOwningChainCollection(obj):
+	#Settings, groups, collisions and links live in child collections, so walk up to the chain collection
+	parentDict = {}
+	for collection in bpy.data.collections:
+		for child in collection.children:
+			parentDict[child.name] = collection
+	for collection in obj.users_collection:
+		visited = set()
+		while collection is not None and collection.name not in visited:
+			visited.add(collection.name)
+			if filterChainCollection(None,collection):
+				return collection
+			collection = parentDict.get(collection.name)
+	return None
+
 def filterChainSetting(self, obj):
     return True if (obj.get("TYPE") == "RE_CHAIN_CHAINSETTINGS" and bpy.context.scene.re_chain_toolpanel.chainCollection != None and obj.name in bpy.context.scene.re_chain_toolpanel.chainCollection.all_objects) else False
 def filterChainGroup(self, obj):
@@ -234,17 +249,33 @@ def nodeCapsuleObject(nodeObj):
 
 def nodeCapsuleCollection(nodeObj):
 	"""The collection the node capsule drawings go in, a child of the node's chain collection (like Chain Links),
-	so they do not crowd the chain's own objects. None when the node is in no collection."""
-	from .blender_re_chain import getCollection
-	parent = nodeObj.users_collection[0] if nodeObj.users_collection else None
+	kept below its other child collections so they do not crowd the chain's own objects. A node outside every chain
+	collection uses its own collection. None when the node is in no collection."""
+	from .blender_re_chain import getCollection,keepNodeCapsuleCollectionLast
+	parent = getOwningChainCollection(nodeObj)
+	if parent == None:
+		parent = nodeObj.users_collection[0] if nodeObj.users_collection else None
 	if parent == None or parent.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION":
 		return parent
 	for child in parent.children:
 		if child.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION":
+			keepNodeCapsuleCollectionLast(parent)
 			return child
 	collection = getCollection(f"Node Capsules - {parent.name}",parent,makeNew = True)
 	collection["TYPE"] = "RE_CHAIN_NODE_CAPSULE_COLLECTION"
 	return collection
+
+def nodeCapsuleRoot(collection):
+	"""The empty the capsule drawings of a capsule collection are parented to, so the Outliner shows them as one
+	closed row. It sits at the origin and draws nothing."""
+	from .blender_re_chain import createCurveEmpty,lockObjTransforms
+	for obj in collection.objects:
+		if obj.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_ROOT":
+			return obj
+	rootObj = createCurveEmpty(collection.name,[("TYPE","RE_CHAIN_NODE_CAPSULE_ROOT")],None,collection)
+	lockObjTransforms(rootObj)
+	rootObj.hide_select = True
+	return rootObj
 
 def updateNodeCapsule(nodeObj):
 	"""Create, refresh or remove the capsule drawing of a Capsule node. The game uses no capsule on the last node,
@@ -274,11 +305,22 @@ def updateNodeCapsule(nodeObj):
 			capsuleObj.show_in_front = bpy.context.scene.re_chain_toolpanel.drawCollisionsThroughObjects
 		except Exception:
 			pass
-	#Drawings made before the capsule collection, or before the wireframe, move over on a redraw
+	#Drawings made before the capsule collection, or before the wireframe, move over on a redraw; so do drawings left
+	#in a capsule collection under a child collection the node was once in, which goes once empty
 	if collection != None and collection not in capsuleObj.users_collection:
 		for oldCollection in list(capsuleObj.users_collection):
 			oldCollection.objects.unlink(capsuleObj)
+			if oldCollection.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION" and len(oldCollection.children) == 0 and all(obj.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_ROOT" for obj in oldCollection.all_objects):
+				for obj in list(oldCollection.all_objects):
+					bpy.data.objects.remove(obj)
+				bpy.data.collections.remove(oldCollection)
 		collection.objects.link(capsuleObj)
+	#Drawings made before the root empty are parented to it on a redraw
+	if collection != None:
+		rootObj = nodeCapsuleRoot(collection)
+		if capsuleObj.parent != rootObj:
+			capsuleObj.parent = rootObj
+			capsuleObj.matrix_parent_inverse.identity()
 	capsuleObj.display_type = 'WIRE'
 	modifier = capsuleObj.modifiers["REChainGeometryNodes"]
 	nodeGroup = getNodeCapsuleGeoNodeTree()
@@ -592,22 +634,22 @@ def groupDefaultAttrUses(settingObj):
 	"""What reads this setting's Group Default Attribute: the groups with Collision from Setting that use the setting
 	(its child groups, or groups without a setting when it is the Default one), and in MH Wilds the link collisions
 	when it is the setting the header's Default Setting Index picks. Returns (group count, used by the links)."""
-	for collection in bpy.data.collections:
-		if settingObj.name in collection.all_objects:
-			objects = collection.all_objects
-			isDefault = settingObj.re_chain_chainsettings.settingsAttrFlags & 0x1
-			groups = 0
-			for obj in objects:
-				if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP" and obj.re_chain_chaingroup.attrFlags & 0x8:
-					parentSetting = obj.parent if obj.parent != None and obj.parent.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS" else None
-					if parentSetting == settingObj or (parentSetting == None and isDefault):
-						groups += 1
-			links = False
-			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
-			if headers and any(obj.get("TYPE",None) == "RE_CHAIN_LINK" for obj in objects):
-				links = defaultSettingObj(headers[0].re_chain_header,settingsInFileOrder(objects)) == settingObj
-			return groups, links
-	return 0, False
+	collection = getOwningChainCollection(settingObj)
+	if collection == None:
+		return 0, False
+	objects = collection.all_objects
+	isDefault = settingObj.re_chain_chainsettings.settingsAttrFlags & 0x1
+	groups = 0
+	for obj in objects:
+		if obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP" and obj.re_chain_chaingroup.attrFlags & 0x8:
+			parentSetting = obj.parent if obj.parent != None and obj.parent.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS" else None
+			if parentSetting == settingObj or (parentSetting == None and isDefault):
+				groups += 1
+	links = False
+	headers = [obj for obj in objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
+	if headers and any(obj.get("TYPE",None) == "RE_CHAIN_LINK" for obj in objects):
+		links = defaultSettingObj(headers[0].re_chain_header,settingsInFileOrder(objects)) == settingObj
+	return groups, links
 
 def settingsInFileOrder(objects):
 	"""The chain settings in the order export writes them: by ID (then name, as export sorts before it)."""
@@ -636,9 +678,12 @@ def defaultSettingObj(header,settings):
 def headerSettings(header):
 	"""The chain settings in the header's collection, in file order (none for the clipboard's header)."""
 	headerObj = header.id_data
-	if type(headerObj).__name__ != "Object" or not headerObj.users_collection:
+	if type(headerObj).__name__ != "Object":
 		return []
-	return settingsInFileOrder(headerObj.users_collection[0].all_objects)
+	collection = getOwningChainCollection(headerObj)
+	if collection == None:
+		collection = headerObj.users_collection[0] if headerObj.users_collection else None
+	return settingsInFileOrder(collection.all_objects) if collection != None else []
 
 #Blender needs the strings a dynamic enum returns to stay alive
 DEFAULT_SETTING_ITEMS = []
@@ -672,11 +717,11 @@ def setDefaultSetting(self, value):
 def linkCollisionSetting(chainLinkObj):
 	"""The chain setting whose Group Default Attribute switches link collision on: MH Wilds takes the setting the
 	header's Default Setting picks."""
-	for collection in bpy.data.collections:
-		if chainLinkObj.name in collection.all_objects:
-			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
-			if headers:
-				return headers[0], defaultSettingObj(headers[0].re_chain_header,settingsInFileOrder(collection.all_objects))
+	collection = getOwningChainCollection(chainLinkObj)
+	if collection != None:
+		headers = [obj for obj in collection.all_objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
+		if headers:
+			return headers[0], defaultSettingObj(headers[0].re_chain_header,settingsInFileOrder(collection.all_objects))
 	return None, None
 
 #Link Mode items: the names, or the original ones with the add-on preference (see re_chain_names). Kept at module level:
