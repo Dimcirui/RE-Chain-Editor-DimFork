@@ -8,6 +8,7 @@ from bpy.types import (Panel,
 
 from .file_re_chain import version
 from .re_chain_names import propLabel,pickName
+from .re_chain_type_sync import chainFileTypeForCollection
 
 def tag_redraw(context, space_type="PROPERTIES", region_type="WINDOW"):
 	for window in context.window_manager.windows:
@@ -52,9 +53,19 @@ class OBJECT_PT_ChainObjectModePanel(Panel):
 		scene = context.scene
 		re_chain_toolpanel = scene.re_chain_toolpanel
 		layout = self.layout
+		#The active chain collection decides the format, the Type field when none is set (or a .clsp one is)
+		fileType = None
+		if re_chain_toolpanel.chainCollection:
+			fileType = chainFileTypeForCollection(re_chain_toolpanel.chainCollection.name)
+		if fileType is None:
+			fileType = re_chain_toolpanel.chainFileType
 		row = layout.row(align = True)
-		row.operator("re_chain.importfile", text = "Import Chain", icon = "IMPORT")
-		row.operator("re_chain.exportfile", text = "Export Chain", icon = "EXPORT")
+		if fileType == "chain2":
+			row.operator("re_chain2.importfile", text = "Import Chain2", icon = "IMPORT")
+			row.operator("re_chain2.exportfile", text = "Export Chain2", icon = "EXPORT")
+		else:
+			row.operator("re_chain.importfile", text = "Import Chain", icon = "IMPORT")
+			row.operator("re_chain.exportfile", text = "Export Chain", icon = "EXPORT")
 		row = layout.row(align = True)
 		row.operator("re_clsp.importfile", text = "Import CLSP", icon = "IMPORT")
 		row.operator("re_clsp.exportfile", text = "Export CLSP", icon = "EXPORT")
