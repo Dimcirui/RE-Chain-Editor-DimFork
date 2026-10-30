@@ -81,6 +81,8 @@ Objects that follow a bone have a Child Of constraint named `BoneName`; its `sub
 - Group `terminateNodeNameHash`: hash of the last node's `BoneName` subtarget.
 - Link `terminateNodeNameHashA/B`: the terminate hash of the group named by `re_chain_chainlink.chainGroupAObject` / `chainGroupBObject` (object names), or the number itself if the field holds digits.
 - A wind or chain settings `id` used twice goes up by one until unique (the same rule export always applied).
+- Header `defaultSettingIdx` (file field): the index, in the written (ID) order, of the chain setting whose `id` is `re_chain_header.defaultSettingID`; 0 when no setting has that ID (with chain links, `chainStructureErrors` reports it instead). A header with `defaultSettingID` -1 (scenes from before it existed) uses its `defaultSettingIdx` property, and one past the last setting (the game crashes on it) becomes the index of the setting whose `id` equals it, or 0, with a warning.
+- `chainStructureErrors` also reports a chain group or chain settings whose (wind) settings parent, or a chain link whose Chain Group A / B, is in another collection.
 
 ## Property groups
 
@@ -91,7 +93,8 @@ Each table lists the properties export reads, with the field they become in the 
 | Property | File field |
 |---|---|
 | `errFlagBits` | `errFlags` |
-| `masterSize`, `rotationOrder`, `defaultSettingIdx`, `calculateMode`, `chainAttrFlags`, `parameterFlag`, `calculateStepTime`, `modelCollisionSearch` | same |
+| `defaultSettingID` | `defaultSettingIdx` (see above) |
+| `masterSize`, `rotationOrder`, `calculateMode`, `chainAttrFlags`, `parameterFlag`, `calculateStepTime`, `modelCollisionSearch` | same |
 | `collisionFilterHitBits0` … `collisionFilterHitBits7` | `collisionFilterHit0` … `collisionFilterHit7` |
 | `legacyVersion` | same (.chain only) |
 | `highFPSCalculateMode`, `freeLinkJoint`, `taperedCollideMethod`, `wilds_unkn1`, `wilds_unkn2` | same (chain2 only) |

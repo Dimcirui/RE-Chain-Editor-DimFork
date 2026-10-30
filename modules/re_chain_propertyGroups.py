@@ -605,9 +605,7 @@ def groupDefaultAttrUses(settingObj):
 			links = False
 			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
 			if headers and any(obj.get("TYPE",None) == "RE_CHAIN_LINK" for obj in objects):
-				settings = settingsInFileOrder(objects)
-				index = headers[0].re_chain_header.defaultSettingIdx
-				links = 0 <= index < len(settings) and settings[index] == settingObj
+				links = defaultSettingObj(headers[0].re_chain_header,settingsInFileOrder(objects)) == settingObj
 			return groups, links
 	return 0, False
 
@@ -616,16 +614,69 @@ def settingsInFileOrder(objects):
 	settings = [obj for obj in objects if obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS"]
 	return sorted(settings,key = lambda item: (item.re_chain_chainsettings.id,item.name))
 
+def resolveDefaultSettingIdx(index,settingIDs):
+	"""For a header from before the Default Setting was kept by ID: the index export writes, given the setting IDs in file
+	order. An index past the last setting crashes the game, so it moves to the setting with that ID (where settings are
+	numbered from 0, a file split off from another keeps pointing at the same setting), or to the first one."""
+	if 0 <= index < len(settingIDs):
+		return index
+	return settingIDs.index(index) if index in settingIDs else 0
+
+def defaultSettingIndex(header,settingIDs):
+	"""The header's Default Setting as an index into settingIDs (file order); None when no setting has its ID any more."""
+	if header.defaultSettingID >= 0:
+		return settingIDs.index(header.defaultSettingID) if header.defaultSettingID in settingIDs else None
+	return resolveDefaultSettingIdx(header.defaultSettingIdx,settingIDs)
+
+def defaultSettingObj(header,settings):
+	"""The chain settings object the header's Default Setting picks, from settings in file order, or None."""
+	index = defaultSettingIndex(header,[obj.re_chain_chainsettings.id for obj in settings])
+	return settings[index] if index is not None and index < len(settings) else None
+
+def headerSettings(header):
+	"""The chain settings in the header's collection, in file order (none for the clipboard's header)."""
+	headerObj = header.id_data
+	if type(headerObj).__name__ != "Object" or not headerObj.users_collection:
+		return []
+	return settingsInFileOrder(headerObj.users_collection[0].all_objects)
+
+#Blender needs the strings a dynamic enum returns to stay alive
+DEFAULT_SETTING_ITEMS = []
+
+def getDefaultSettingItems(self, context):
+	#Each item's number is the setting's ID, so the choice follows the setting whatever its place in the file
+	DEFAULT_SETTING_ITEMS.clear()
+	seen = set()
+	for obj in headerSettings(self):
+		settingID = obj.re_chain_chainsettings.id
+		if settingID not in seen:
+			seen.add(settingID)
+			DEFAULT_SETTING_ITEMS.append((str(settingID),f"{obj.name} (ID {settingID})","",settingID))
+	if self.defaultSettingID >= 0 and self.defaultSettingID not in seen:
+		DEFAULT_SETTING_ITEMS.append((str(self.defaultSettingID),f"ID {self.defaultSettingID} (no such setting)","",self.defaultSettingID))
+	if not DEFAULT_SETTING_ITEMS:
+		DEFAULT_SETTING_ITEMS.append(("NONE","None","",-1))
+	return DEFAULT_SETTING_ITEMS
+
+def getDefaultSetting(self):
+	if self.defaultSettingID >= 0:
+		return self.defaultSettingID
+	#Before the ID was kept: the setting export picks from the index
+	obj = defaultSettingObj(self,headerSettings(self))
+	return obj.re_chain_chainsettings.id if obj is not None else -1
+
+def setDefaultSetting(self, value):
+	if value >= 0:
+		self.defaultSettingID = value
+
 def linkCollisionSetting(chainLinkObj):
 	"""The chain setting whose Group Default Attribute switches link collision on: MH Wilds takes the setting the
-	header's Default Setting Index picks, in file order (by ID)."""
+	header's Default Setting picks."""
 	for collection in bpy.data.collections:
 		if chainLinkObj.name in collection.all_objects:
 			headers = [obj for obj in collection.objects if obj.get("TYPE",None) == "RE_CHAIN_HEADER"]
 			if headers:
-				settings = settingsInFileOrder(collection.all_objects)
-				index = headers[0].re_chain_header.defaultSettingIdx
-				return headers[0], settings[index] if 0 <= index < len(settings) else None
+				return headers[0], defaultSettingObj(headers[0].re_chain_header,settingsInFileOrder(collection.all_objects))
 	return None, None
 
 #Link Mode items: the names, or the original ones with the add-on preference (see re_chain_names). Kept at module level:
@@ -990,8 +1041,23 @@ class chainHeaderPropertyGroup(bpy.types.PropertyGroup):
 		)
 	defaultSettingIdx: IntProperty(
 		name = "Default Setting Index",
-		description="Picks the chain setting (counted in ID order) whose Group Default Attribute switches the link collisions on. The setting that groups whose setting ID matches none fall back to is the one marked Default in its Setting Attribute Flags, not this one",#TODO Add description
+		description="Replaced by Default Setting",
 		default = 0,
+		min = 0,
+		max = 255,
+		)
+	defaultSettingID: IntProperty(
+		name = "Default Setting ID",
+		description="The ID of the Default Setting. -1 is not set",
+		default = -1,
+		min = -1,
+		)
+	defaultSetting: EnumProperty(
+		name = "Default Setting",
+		description="The chain setting whose Group Default Attribute switches the link collisions on. It stays the same setting when settings are added, removed or moved to another file. The setting that groups whose setting ID matches none fall back to is the one marked Default in its Setting Attribute Flags, not this one",
+		items = getDefaultSettingItems,
+		get = getDefaultSetting,
+		set = setDefaultSetting,
 		)
 	calculateMode: EnumProperty(
 		name="Calculate Mode",

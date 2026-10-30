@@ -9,6 +9,7 @@ from bpy.types import (Panel,
 from .file_re_chain import version
 from .re_chain_names import propLabel,pickName
 from .re_chain_type_sync import chainFileTypeForCollection
+from .re_chain_propertyGroups import defaultSettingObj,headerSettings
 
 def tag_redraw(context, space_type="PROPERTIES", region_type="WINDOW"):
 	for window in context.window_manager.windows:
@@ -297,7 +298,10 @@ class OBJECT_PT_ChainHeaderPanel(Panel):
 		row.operator("re_chain.set_bit_flags",icon='DOWNARROW_HLT', text="").target = "re_chain_header.errFlagBits"
 		col2.prop(re_chain_header, "masterSize")
 		col2.prop(re_chain_header, "rotationOrder")
-		col2.prop(re_chain_header, "defaultSettingIdx")
+		#Red when no chain setting in the collection has its ID any more
+		row = col2.row()
+		row.alert = defaultSettingObj(re_chain_header,headerSettings(re_chain_header)) is None and re_chain_header.defaultSettingID >= 0
+		row.prop(re_chain_header, "defaultSetting")
 		col2.prop(re_chain_header, "calculateMode")
 		row = col2.row()
 		row.prop(re_chain_header, "chainAttrFlags")

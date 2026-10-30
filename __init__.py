@@ -256,9 +256,9 @@ class ExportREChain(bpy.types.Operator, ExportHelper):
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportChainFile(self.filepath,options, chainVersion)
 		if success:
-			cfilMessages = showCfilWarnings(bpy.data.collections[self.targetCollection],chainVersion,False)
-			if cfilMessages:
-				self.report({"WARNING"},"Exported, but " + cfilMessages[0])
+			showCfilWarnings(bpy.data.collections[self.targetCollection],chainVersion,False)
+			if options["warnings"]:#cfil ones included
+				self.report({"WARNING"},"Exported, but " + options["warnings"][0])
 			else:
 				self.report({"INFO"},"Exported RE Chain successfully.")
 			bpy.data.collections[self.targetCollection]["BatchExport_path"] = self.filepath
@@ -561,9 +561,9 @@ class ExportREChain2(bpy.types.Operator, ExportHelper):
 		print("https://github.com/NSACloud/RE-Chain-Editor")
 		success = exportChainFile(self.filepath,options, chainVersion,isChain2=True)
 		if success:
-			cfilMessages = showCfilWarnings(bpy.data.collections[self.targetCollection],chainVersion,True)
-			if cfilMessages:
-				self.report({"WARNING"},"Exported, but " + cfilMessages[0])
+			showCfilWarnings(bpy.data.collections[self.targetCollection],chainVersion,True)
+			if options["warnings"]:#cfil ones included
+				self.report({"WARNING"},"Exported, but " + options["warnings"][0])
 			else:
 				self.report({"INFO"},"Exported RE Chain successfully.")
 			#Add batch export entry to RE Toolbox if it doesn't already have one

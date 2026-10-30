@@ -31,7 +31,9 @@ from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
 									  getChainLinkCollisionNode,
 									  setChainLinkCollisionNodeData,
 									  objChildren,
-									  withExportChildren)
+									  withExportChildren,
+									  defaultSettingIndex,
+									  settingsInFileOrder)
 
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree,getChainLinkGeoNodeTree,getConeGeoNodeTree,getLinkColGeoNodeTree,getChainGroupMat
 
@@ -516,6 +518,10 @@ def importChainFile(filepath,options,isChain2 = False):
 		headerObj = createEmpty(f"CHAIN_HEADER {chainFileName}",headerPropertyList,None,chainCollection)
 		
 		getChainHeader(chainFile.Header,headerObj,isChain2)
+		#Kept by ID, so the setting stays the same when settings are added, removed or split off into another file
+		settingsList = chainFile.ChainSettingsList
+		if 0 <= chainFile.Header.defaultSettingIdx < len(settingsList):
+			headerObj.re_chain_header.defaultSettingID = settingsList[chainFile.Header.defaultSettingIdx].id
 		lockObjTransforms(headerObj)
 		
 	"""	
@@ -1119,6 +1125,8 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 	#Duplicate chain and wind setting ids are fixed by dedupeSettingsIDs
 	#TODO
 	#Check that chain links are valid
+	#Check that settings, wind settings and link groups an object uses are in the same collection (a split file)
+	#Check that the Default Setting is in the collection when it has chain links
 	errorList = []
 	if chainCollection != None:
 		objList = chainCollection.all_objects
@@ -1130,6 +1138,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 
 		if obj.get("TYPE",None) == "RE_CHAIN_HEADER":
 			headerCount += 1
+			headerObj = obj
 			if obj.parent != None:
 				errorList.append("Chain header cannot be a child of another object.")
 		
@@ -1162,9 +1171,11 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 		elif obj.get("TYPE",None) == "RE_CHAIN_CHAINGROUP":
 			
 			validParentTypeList = ["RE_CHAIN_CHAINSETTINGS"]
-			if obj.parent != None:    
+			if obj.parent != None:
 				if obj.parent.get("TYPE",None) not in validParentTypeList:
 					errorList.append(obj.name + " must be parented to a chain settings object.")
+				elif obj.parent.name not in objList:
+					errorList.append(f"{obj.name} uses the chain settings {obj.parent.name}, which is in another collection; it would point at a setting this file doesn't have.")
 			else:
 				errorList.append(obj.name + " must be parented to a chain settings object.")
 				
@@ -1189,9 +1200,11 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 		
 		elif obj.get("TYPE",None) == "RE_CHAIN_CHAINSETTINGS":
 			validParentTypeList = ["RE_CHAIN_HEADER","RE_CHAIN_WINDSETTINGS"]
-			if obj.parent != None:    
+			if obj.parent != None:
 				if obj.parent.get("TYPE",None) not in validParentTypeList:
 					errorList.append(obj.name + " object must be parented to a chain header or wind settings object.")
+				elif obj.parent.get("TYPE",None) == "RE_CHAIN_WINDSETTINGS" and obj.parent.name not in objList:
+					errorList.append(f"{obj.name} uses the wind settings {obj.parent.name}, which is in another collection; it would point at wind settings this file doesn't have.")
 			else:
 				errorList.append(obj.name + " object must be parented to a chain header or wind settings object.")
 			
@@ -1264,6 +1277,9 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 					errorList.append(obj.name + " object must be parented to a chain header object")
 			else:
 				errorList.append(obj.name + " object must be parented to a chain header object")
+			for side,groupName in (("A",obj.re_chain_chainlink.chainGroupAObject),("B",obj.re_chain_chainlink.chainGroupBObject)):
+				if bpy.context.scene.objects.get(groupName,None) != None and groupName not in objList:
+					errorList.append(f"{obj.name}: Chain Group {side} ({groupName}) is in another collection; a chain link's groups must be in the same file.")
 			if bpy.context.scene.objects.get(obj.re_chain_chainlink.chainGroupAObject,None) != None:
 				if bpy.context.scene.objects[obj.re_chain_chainlink.chainGroupAObject].get("TYPE",None) != "RE_CHAIN_CHAINGROUP":
 					errorList.append(obj.name + ": Chain Group A must be set to a Chain Group object")
@@ -1277,6 +1293,11 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 			elif obj.re_chain_chainlink.chainGroupBObject != "":
 				#errorList.append(obj.name + ": Chain Group B is set to an object that doesn't exist")
 				warn(obj.name + ": Chain Group B is set to an object that doesn't exist")
+	if headerCount == 1 and any(obj.get("TYPE",None) == "RE_CHAIN_LINK" for obj in objList):
+		#The chain links' collision switch comes from the Default Setting, so a file without it would change them
+		settingIDs = [obj.re_chain_chainsettings.id for obj in settingsInFileOrder(objList)]
+		if defaultSettingIndex(headerObj.re_chain_header,settingIDs) is None:
+			errorList.append(f"The Default Setting (ID {headerObj.re_chain_header.defaultSettingID}) is not in this collection, and the chain links' collisions depend on it. Pick a Default Setting on the chain header.")
 	if headerCount == 0:
 		errorList.append("No chain header object in collection.")
 		
@@ -1364,7 +1385,12 @@ def exportChainFile(filepath,options, version, isChain2 = False):
 	chainCollection = bpy.data.collections.get(options["targetCollection"],None)
 	if valid and chainCollection != None:
 		print(textColors.OKCYAN + "__________________________________\nChain export started."+textColors.ENDC)
-		newChainFile = buildChainFile(chainCollection,version,isChain2)
+		#Export's warnings, for the operator to report
+		warnings = options.setdefault("warnings",[])
+		def warn(message):
+			raiseWarning(message)
+			warnings.append(message)
+		newChainFile = buildChainFile(chainCollection,version,isChain2,warn = warn)
 		print("Chain Conversion Finished")
 		writeREChain(newChainFile, filepath)
 		return True
@@ -1443,7 +1469,22 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 	if fixScene:
 		headerObj.re_chain_header.version = str(version)
 	setChainHeaderData(newChainFile.Header, headerObj,isChain2)
-	
+	#The file stores the Default Setting's place among the settings, which are written in ID order
+	settingIDs = sorted(settingsIDDict[obj.name] for obj in chainSettingsObjList)
+	header = headerObj.re_chain_header
+	defaultSettingIdx = defaultSettingIndex(header,settingIDs)
+	if defaultSettingIdx is None:
+		#No setting has the ID any more; with chain links chainStructureErrors has stopped the export
+		defaultSettingIdx = 0
+	elif header.defaultSettingID < 0 and defaultSettingIdx != header.defaultSettingIdx:
+		warn(f"Default Setting Index {header.defaultSettingIdx} is past the last of the {len(settingIDs)} chain settings, exported as {defaultSettingIdx}")
+	newChainFile.Header.defaultSettingIdx = defaultSettingIdx
+	if fixScene:
+		header.defaultSettingIdx = defaultSettingIdx
+		#A header from before the ID was kept keeps the setting by ID from now on
+		if header.defaultSettingID < 0 and settingIDs:
+			header.defaultSettingID = settingIDs[defaultSettingIdx]
+
 	chainGroupTerminateNodeHashDict = {}#Used for chain links
 	for windSettingsObj in windSettingsObjList:
 		if isChain2:
