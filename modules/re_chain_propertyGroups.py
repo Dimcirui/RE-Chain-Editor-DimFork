@@ -310,10 +310,7 @@ def updateNodeCapsule(nodeObj):
 	if collection != None and collection not in capsuleObj.users_collection:
 		for oldCollection in list(capsuleObj.users_collection):
 			oldCollection.objects.unlink(capsuleObj)
-			if oldCollection.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION" and len(oldCollection.children) == 0 and all(obj.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_ROOT" for obj in oldCollection.all_objects):
-				for obj in list(oldCollection.all_objects):
-					bpy.data.objects.remove(obj)
-				bpy.data.collections.remove(oldCollection)
+			removeEmptyNodeCapsuleCollection(oldCollection)
 		collection.objects.link(capsuleObj)
 	#Drawings made before the root empty are parented to it on a redraw
 	if collection != None:
@@ -332,6 +329,27 @@ def updateNodeCapsule(nodeObj):
 		modifier[key] = value
 	nodeGroup.interface_update(bpy.context)
 	return capsuleObj
+
+def removeEmptyNodeCapsuleCollection(collection):
+	"""Remove a capsule collection that holds nothing but its root empty."""
+	if collection.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_COLLECTION" and len(collection.children) == 0 and all(obj.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE_ROOT" for obj in collection.all_objects):
+		for obj in list(collection.all_objects):
+			bpy.data.objects.remove(obj)
+		bpy.data.collections.remove(collection)
+
+def removeOrphanNodeCapsules():
+	"""Remove the capsule drawings whose node was deleted (Blender clears the reference) or no longer points back at
+	them, along with capsule collections left empty. Returns whether anything was removed."""
+	orphans = [obj for obj in bpy.data.objects if obj.get("TYPE",None) == "RE_CHAIN_NODE_CAPSULE"
+		and (obj.get("chainNode",None) == None or nodeCapsuleObject(obj["chainNode"]) != obj)]
+	if not orphans:
+		return False
+	collections = {collection for obj in orphans for collection in obj.users_collection}
+	for obj in orphans:
+		bpy.data.objects.remove(obj)
+	for collection in collections:
+		removeEmptyNodeCapsuleCollection(collection)
+	return True
 
 def update_NodeCapsule(self, context):
 	obj = self.id_data

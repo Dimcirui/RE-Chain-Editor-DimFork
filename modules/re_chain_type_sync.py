@@ -3,7 +3,7 @@ import re
 import bpy
 from bpy.app.handlers import persistent
 
-from .re_chain_propertyGroups import getOwningChainCollection
+from .re_chain_propertyGroups import getOwningChainCollection,removeOrphanNodeCapsules
 
 #Blender's duplicate suffix, as in "name.chain2.001"
 DUPLICATE_SUFFIX = re.compile(r"\.\d{3,}$")
@@ -70,6 +70,14 @@ def re_chain_group_name_sync(scene,depsgraph = None):
 	#Records the names of new groups (import, Create Chain) and catches renames msgbus doesn't report (from Python)
 	syncChainGroupNames()
 
+@persistent
+def re_chain_node_capsule_cleanup(scene,depsgraph = None):
+	#A deleted node (with its chain group, say) leaves its capsule drawing behind in the capsule collection
+	try:
+		removeOrphanNodeCapsules()
+	except Exception as err:
+		print(f"RE Chain Editor: node capsule cleanup failed: {err}")
+
 def stampChainGroupNames():
 	#From a timer: while the add-on registers at startup bpy.data can't be read
 	syncChainGroupNames()
@@ -104,6 +112,8 @@ def register():
 		bpy.app.handlers.load_post.append(re_chain_resubscribe_type_sync)
 	if re_chain_group_name_sync not in bpy.app.handlers.depsgraph_update_post:
 		bpy.app.handlers.depsgraph_update_post.append(re_chain_group_name_sync)
+	if re_chain_node_capsule_cleanup not in bpy.app.handlers.depsgraph_update_post:
+		bpy.app.handlers.depsgraph_update_post.append(re_chain_node_capsule_cleanup)
 	bpy.app.timers.register(stampChainGroupNames,first_interval = 0.0)
 
 def unregister():
@@ -111,6 +121,8 @@ def unregister():
 		bpy.app.handlers.load_post.remove(re_chain_resubscribe_type_sync)
 	if re_chain_group_name_sync in bpy.app.handlers.depsgraph_update_post:
 		bpy.app.handlers.depsgraph_update_post.remove(re_chain_group_name_sync)
+	if re_chain_node_capsule_cleanup in bpy.app.handlers.depsgraph_update_post:
+		bpy.app.handlers.depsgraph_update_post.remove(re_chain_node_capsule_cleanup)
 	if bpy.app.timers.is_registered(stampChainGroupNames):
 		bpy.app.timers.unregister(stampChainGroupNames)
 	bpy.msgbus.clear_by_owner(subscriptionOwner)
