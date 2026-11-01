@@ -6,6 +6,7 @@ from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,g
 from .file_re_clsp import readRECLSP,writeRECLSP,CLSPFile,CLSPEntry
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
+from .re_chain_bone_targets import hasBoneTarget,repairBoneTargets
 from .re_chain_geoNodes import getColCapsuleGeoNodeTree,getColSphereGeoNodeTree
 from .re_chain_type_sync import DUPLICATE_SUFFIX
 from .re_chain_shapes import (NO_JOINT_HASH,boneNameHash,storePairJoint,pairJointHash,
@@ -558,6 +559,7 @@ def importCLSPFile(filepath,options):
 	return True
 def clspErrorCheck(chainCollectionName):
 	print("\nChecking for problems with chain structure...")
+	repairBoneTargets()
 	errorList = clspStructureErrors(bpy.data.collections.get(chainCollectionName))
 	if errorList == []:
 		print("No problems found.")
@@ -598,14 +600,14 @@ def clspStructureErrors(chainCollection):
 			if obj.re_chain_chaincollision.chainCollisionShape == "2":#Capsule
 				errorList.append(obj.name + " object collision shape is set to capsule, but is not a capsule. Create capsules by using the Create Collision From Bone button after selecting two bones")
 			if obj.constraints.get("BoneName",False):
-				if obj.constraints["BoneName"].target == "" or obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
+				if not hasBoneTarget(obj.constraints["BoneName"]):
 					errorList.append("Invalid child of constraint on " + obj.name)
 			else:
 				errorList.append("Child of constraint missing on " + obj.name)        
 		
 		elif obj.get("TYPE",None) in ("RE_CHAIN_COLLISION_PLANE","RE_CHAIN_COLLISION_BOX"):
 			if obj.constraints.get("BoneName",False):
-				if obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
+				if not hasBoneTarget(obj.constraints["BoneName"]):
 					shapeName = "plane" if obj["TYPE"] == "RE_CHAIN_COLLISION_PLANE" else "box"
 					errorList.append("Invalid child of constraint on " + obj.name + f" (remove it for a {shapeName} on the armature object itself)")
 		elif obj.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
@@ -623,7 +625,7 @@ def clspStructureErrors(chainCollection):
 				errorList.append("Collision capsule " + obj.name + " has no start point parented to it.")
 			else:
 				if startCapsule.constraints.get("BoneName",False):
-					if startCapsule.constraints["BoneName"].target == "" or startCapsule.constraints["BoneName"].target == None or startCapsule.constraints["BoneName"].subtarget == "":
+					if not hasBoneTarget(startCapsule.constraints["BoneName"]):
 						errorList.append("Invalid child of constraint on " + startCapsule.name)
 				else:
 					errorList.append("Child of constraint missing on " + startCapsule.name)
@@ -639,7 +641,7 @@ def clspStructureErrors(chainCollection):
 				errorList.append("Collision capsule " + obj.name + " has no end point parented to it.")
 			else:
 				if endCapsule.constraints.get("BoneName",False):
-					if endCapsule.constraints["BoneName"].target == "" or endCapsule.constraints["BoneName"].target == None or endCapsule.constraints["BoneName"].subtarget == "":
+					if not hasBoneTarget(endCapsule.constraints["BoneName"]):
 						errorList.append("Invalid child of constraint on " + endCapsule.name)
 				else:
 					errorList.append("Child of constraint missing on " + endCapsule.name)

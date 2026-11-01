@@ -11,6 +11,7 @@ from .pymmh3 import hash_wide
 from .re_chain_shapes import CHAIN_NO_JOINT_HASHES,OWNER_JOINT_HASH,toSigned32,createChainShapeCollision,storePairJoint
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_cfil import cfilWarnings
+from .re_chain_bone_targets import hasBoneTarget,repairBoneTargets
 from .re_chain_propertyGroups import (angleLimitConeScale,getChainHeader,
 									  getWindSettings,
 									  getChainSettings,
@@ -1127,6 +1128,7 @@ def importChainFile(filepath,options,isChain2 = False):
 	return True
 def chainErrorCheck(chainCollectionName):
 	print("\nChecking for problems with chain structure...")
+	repairBoneTargets()
 	chainCollection = bpy.data.collections.get(chainCollectionName)
 	if chainCollection != None:
 		dedupeSettingsIDs(chainCollection.all_objects)
@@ -1251,7 +1253,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 			if obj.re_chain_chaincollision.chainCollisionShape == "2":#Capsule
 				errorList.append(obj.name + " object collision shape is set to capsule, but is not a capsule. Create capsules by using the Create Collision From Bone button after selecting two bones")
 			if obj.constraints.get("BoneName",False):
-				if obj.constraints["BoneName"].target == "" or obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
+				if not hasBoneTarget(obj.constraints["BoneName"]):
 					errorList.append("Invalid child of constraint on " + obj.name)
 			else:
 				errorList.append("Child of constraint missing on " + obj.name)
@@ -1260,7 +1262,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 			if obj.parent == None or obj.parent.get("TYPE",None) != "RE_CHAIN_HEADER":
 				errorList.append(obj.name + " object must be parented to a chain header object")
 			if obj.constraints.get("BoneName",False):
-				if obj.constraints["BoneName"].target == None or obj.constraints["BoneName"].subtarget == "":
+				if not hasBoneTarget(obj.constraints["BoneName"]):
 					errorList.append("Invalid child of constraint on " + obj.name + " (remove it for a collision on the chain's owner)")
 
 		elif obj.get("TYPE",None) == "RE_CHAIN_COLLISION_CAPSULE_ROOT":
@@ -1283,7 +1285,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 				errorList.append("Collision capsule " + obj.name + " has no start point parented to it.")
 			else:
 				if startCapsule.constraints.get("BoneName",False):
-					if startCapsule.constraints["BoneName"].target == "" or startCapsule.constraints["BoneName"].target == None or startCapsule.constraints["BoneName"].subtarget == "":
+					if not hasBoneTarget(startCapsule.constraints["BoneName"]):
 						errorList.append("Invalid child of constraint on " + startCapsule.name)
 				else:
 					errorList.append("Child of constraint missing on " + startCapsule.name)
@@ -1299,7 +1301,7 @@ def chainStructureErrors(chainCollection,warn = raiseWarning):
 				errorList.append("Collision capsule " + obj.name + " has no end point parented to it.")
 			else:
 				if endCapsule.constraints.get("BoneName",False):
-					if endCapsule.constraints["BoneName"].target == "" or endCapsule.constraints["BoneName"].target == None or endCapsule.constraints["BoneName"].subtarget == "":
+					if not hasBoneTarget(endCapsule.constraints["BoneName"]):
 						errorList.append("Invalid child of constraint on " + endCapsule.name)
 				else:
 					errorList.append("Child of constraint missing on " + endCapsule.name)

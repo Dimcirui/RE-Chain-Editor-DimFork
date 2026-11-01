@@ -33,6 +33,7 @@ from .modules.re_chain_operators import WM_OT_ChainFromBone,WM_OT_FixAngleLimitF
 from .modules.blender_re_clsp import importCLSPFile,exportCLSPFile,migrateCLSPCollectionTypes
 from .modules import re_chain_type_sync
 from .modules import re_chain_interactions
+from .modules import re_chain_bone_targets
 from . import wd_api#Imported so other add-ons find it in sys.modules
 
 class REChainPreferences(AddonPreferences):
@@ -822,8 +823,10 @@ def register():
 	bpy.app.timers.register(migrateCLSPTypesOnEnable,first_interval = 0.0)
 	re_chain_type_sync.register()
 	re_chain_interactions.register()
+	re_chain_bone_targets.register()
 	
 def unregister():
+	re_chain_bone_targets.unregister()
 	re_chain_interactions.unregister()
 	re_chain_type_sync.unregister()
 	if re_chain_migrate_flags in bpy.app.handlers.load_post:
