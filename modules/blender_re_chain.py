@@ -8,6 +8,7 @@ from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,g
 from .file_re_chain import readREChain,writeREChain
 from .file_re_chain2 import readREChain2,writeREChain2,DEFAULT_SUBDATA_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
 from .pymmh3 import hash_wide
+from .re9_bone_axes import BoneAxes,armaturesOfObjects,convertChainFileAxes
 from .re_chain_shapes import CHAIN_NO_JOINT_HASHES,OWNER_JOINT_HASH,toSigned32,createChainShapeCollision,storePairJoint
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_cfil import cfilWarnings
@@ -484,6 +485,8 @@ def importChainFile(filepath,options,isChain2 = False):
 	removedItems = []
 	#Pre check to see if the chain bones are present before trying to import the chain
 	boneHashDict = getArmatureHashList(armature)
+	#Offsets and rotations on RE9 bones go to the Blender bone frames
+	convertChainFileAxes(chainFile,BoneAxes([armature]),toFile = False)
 	for chainIndex,chainGroup in enumerate(chainFile.ChainGroupList):
 		if not isChain2:
 			endBone = findBone(chainGroup.terminateNodeName,armature)
@@ -1778,6 +1781,8 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 		#print(nodeObjList)
 	#Sort chain settings by ID, otherwise the chain groups will be assigned to the wrong chain settings in game
 	newChainFile.ChainSettingsList.sort(key = lambda x: x.id)
+	#Offsets and rotations on RE9 bones go back to the file's bone frames
+	convertChainFileAxes(newChainFile,BoneAxes(armaturesOfObjects(objList)),toFile = True)
 	return newChainFile
 		#for newWindSetttings in newChainFile.WindSettingsList:
 			#print(newWindSetttings)

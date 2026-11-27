@@ -4,6 +4,7 @@ import os
 
 from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,getAssetPath
 from .file_re_clsp import readRECLSP,writeRECLSP,CLSPFile,CLSPEntry
+from .re9_bone_axes import BoneAxes,armaturesOfObjects,convertCLSPFileAxes
 from .pymmh3 import hash_wide
 from .blender_utils import showMessageBox,showErrorMessageBox
 from .re_chain_bone_targets import hasBoneTarget,repairBoneTargets
@@ -370,6 +371,8 @@ def importCLSPFile(filepath,options):
 	removedItems = []
 	removedItems = []
 	boneHashDict = getArmatureHashList(armature)
+	#Offsets on RE9 bones go to the Blender bone frames
+	convertCLSPFileAxes(clspFile,BoneAxes([armature]),toFile = False)
 			#return False
 
 
@@ -792,6 +795,8 @@ def buildCLSPFile(chainCollection,version,fixScene = True,warn = raiseWarning):
 			
 		
 	newCLSPFile.header.entryCount = len(newCLSPFile.clspEntryList)
+	#Offsets on RE9 bones go back to the file's bone frames
+	convertCLSPFileAxes(newCLSPFile,BoneAxes(armaturesOfObjects(objList)),toFile = True)
 	return newCLSPFile,showWarningMessage
 		#for newWindSetttings in newChainFile.WindSettingsList:
 			#print(newWindSetttings)
