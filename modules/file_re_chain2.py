@@ -6,9 +6,9 @@ from .gen_functions import textColors,raiseWarning,raiseError,getPaddingAmount,g
 VERSION_DD2 = 4
 VERSION_DR = 9
 VERSION_MHWILDS = 12#Beta
-#The chain setting subdata MH Wilds chain2 settings carry
+#The chain setting subdata MH Wilds, RE9 and Onimusha chain2 settings carry
 MHWILDS_DEFAULT_SETTINGS_SUBDATA = ((0,1,0,0,0,0,0),(0,1,0,0,77,0,0))
-MHWILDS_VERSION_SET = set([14])#12 and 13 are no longer used by MH Wilds
+DEFAULT_SUBDATA_VERSION_SET = set([14,15,17])#MH Wilds, RE9 / MHS3, Onimusha. 12 and 13 are no longer used by MH Wilds
 VERSION_MHS3 = 15
 VERSION_ONIMUSHA = 17
 

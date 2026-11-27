@@ -6,7 +6,7 @@ from math import radians
 
 from .gen_functions import textColors,raiseWarning,raiseError,splitNativesPath,getAssetPath
 from .file_re_chain import readREChain,writeREChain
-from .file_re_chain2 import readREChain2,writeREChain2,MHWILDS_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
+from .file_re_chain2 import readREChain2,writeREChain2,DEFAULT_SUBDATA_VERSION_SET,MHWILDS_DEFAULT_SETTINGS_SUBDATA,Chain2SettingsSubData
 from .pymmh3 import hash_wide
 from .re_chain_shapes import CHAIN_NO_JOINT_HASHES,OWNER_JOINT_HASH,toSigned32,createChainShapeCollision,storePairJoint
 from .blender_utils import showMessageBox,showErrorMessageBox
@@ -1537,17 +1537,17 @@ def buildChainFile(chainCollection,version,isChain2 = False,fixScene = True,warn
 		if isChain2:
 			chainSettings = Chain2SettingsData()
 			
-			#MHWilds automatic fix for missing chain setting subdata
-			if fixScene and len(chainSettingsObj.re_chain_chainsettings.subDataList_items) == 0 and version in MHWILDS_VERSION_SET:
+			#Automatic fix for missing chain setting subdata (MH Wilds and later)
+			if fixScene and len(chainSettingsObj.re_chain_chainsettings.subDataList_items) == 0 and version in DEFAULT_SUBDATA_VERSION_SET:
 				for values in MHWILDS_DEFAULT_SETTINGS_SUBDATA:
 					newListItem = chainSettingsObj.re_chain_chainsettings.subDataList_items.add()
 					newListItem.values = values
-				print(f"Detected missing MH Wilds chain setting subdata, added missing subdata to {chainSettingsObj.name}")
+				print(f"Detected missing chain setting subdata, added missing subdata to {chainSettingsObj.name}")
 		else:
 			chainSettings = ChainSettingsData()
 			
 		setChainSettingsData(chainSettings, chainSettingsObj,isChain2)
-		if isChain2 and len(chainSettings.subDataList) == 0 and version in MHWILDS_VERSION_SET:
+		if isChain2 and len(chainSettings.subDataList) == 0 and version in DEFAULT_SUBDATA_VERSION_SET:
 			#Same subdata as the fix above, without adding it to the object
 			for values in MHWILDS_DEFAULT_SETTINGS_SUBDATA:
 				entry = Chain2SettingsSubData()
